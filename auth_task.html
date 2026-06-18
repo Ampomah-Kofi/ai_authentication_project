@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<!--
+Deployment README
+
+Supabase setup:
+1. Create two tables: task_events and task_withdrawals.
+   Suggested columns for each table:
+   - pid text
+   - condition text
+   - placement text
+   - payload jsonb
+   - created_at timestamptz default now()
+   For task_withdrawals, condition/placement may be nullable if you only store pid + payload.
+2. Enable Row Level Security on both tables.
+3. Add an RLS policy that allows INSERT from the anon role only.
+   Do not allow anon SELECT, UPDATE, or DELETE.
+4. Populate CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, and CONFIG.surveyBaseUrl
+   before deployment.
+5. Optional: populate CONFIG.abandonmentBeaconUrl with a Supabase Edge Function
+   or other endpoint that accepts sendBeacon POSTs without custom headers.
+MFA challenge code is generated once at page load, not at the start of the
+authentication chain. This is intentional and should be noted in the methods
+section of the paper.
+Behavioral task data joins to Qualtrics survey responses on the pid field. In
+Qualtrics, configure embedded data fields named pid, condition, and placement
+that capture the URL parameters of the same name, so each survey response
+carries the matching task participant code and assigned cell.
+The recall section includes two independent data-quality signals: the
+planted-permission recall and the assistant-name attention check. Decide in
+advance whether to exclude participants who fail both, or either, and document
+the rule in the methods section.
+
+DESIGN (updated): 2x2 between-subjects.
+  Factor 1 (condition): A_fresh vs B_chained  -- whether the consent screen is
+    reached cold or after the SSO + MFA chain. Addresses RQ3 (cascade decay).
+  Factor 2 (placement): top vs bottom -- whether the over-broad planted
+    permission (saved payment methods) renders FIRST or LAST in the list.
+    Addresses RQ2 (noticing broad access as a function of position).
+  The permission set is identical across placement arms; only the position of
+  the planted payment row changes. The scrollbox is identical in both arms, so
+  scroll demand is held constant and only position varies.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A short usable security and privacy research task from the UA SPECTRAL Lab at the University of Alabama.">
+<title>AI Authentication Study — UA SPECTRAL Lab</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%230072B2"/><path d="M17 16h30v8H36v25h-8V24H17z" fill="white"/><circle cx="47" cy="18" r="6" fill="%2300A676"/></svg>'>
+<style>
+  :root{
+    --ink:#1c1c1e; --muted:#6b7280; --line:#e5e7eb; --bg:#f3f4f6;
+    --brand:#0072B2; --brand-dark:#005a8e; --danger:#b00020;
+    --card:#ffffff; --radius:14px;
+    --sans: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--sans); color:var(--ink); background:var(--bg);
+    min-height:100vh; display:flex; align-items:flex-start; justify-content:center;
+    padding:28px 18px; line-height:1.55; font-size:17px;
+  }
+  body.consent-active{overflow:hidden;align-items:center;}
+  .stage{width:100%; max-width:620px;}
+  .screen{display:none;}
+  .screen.active{display:block; animation:fade .25s ease;}
+  .screen:focus{outline:none;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  @media (prefers-reduced-motion: reduce){
+    .screen.active{animation:none;}
+  }
+  .btn:focus-visible,
+  .social:focus-visible,
+  .mfa-option:focus-visible,
+  .opt:focus-within,
+  .perm-list:focus-visible,
+  input:focus-visible{
+    outline:3px solid #93c5fd;
+    outline-offset:3px;
+  }
+
+  .panel{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:30px 28px; box-shadow:0 1px 3px rgba(0,0,0,.05);
+  }
+  .panel h1{font-size:24px; margin:0 0 14px;}
+  .panel h2{font-size:19px; margin:18px 0 8px;}
+  .panel p{margin:0 0 14px; font-size:16.5px; color:#333;}
+  .small{font-size:14px; color:var(--muted);}
+  ul.tight{margin:0 0 14px; padding-left:20px; font-size:16px;}
+  ul.tight li{margin-bottom:6px;}
+  .intro-panel{padding:0; overflow:hidden;}
+  .intro-head{
+    background:#f7fbff; border-bottom:1px solid #dbeafe;
+    padding:28px 30px 22px;
+  }
+  .intro-head h1{font-size:29px; line-height:1.18; margin:0 0 8px;}
+  .intro-head p{font-size:17px; margin:0; color:#314158;}
+  .intro-body{padding:24px 30px 30px;}
+  .intro-meta{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px;
+    margin:0 0 20px;
+  }
+  .meta-item{
+    border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+    background:#fff; min-height:74px;
+  }
+  .meta-label{
+    display:block; font-size:12px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px;
+  }
+  .meta-value{display:block; font-size:15px; font-weight:700; color:#1f2937; line-height:1.3;}
+  .notice{
+    background:#eef6fb; border:1px solid #cfe3f3; border-radius:10px;
+    padding:13px 15px; margin:0 0 18px; color:#0c447c;
+  }
+  .notice p{font-size:15px; margin:0; color:#0c447c;}
+  .consent-section{
+    border-top:1px solid var(--line); padding-top:16px; margin-top:16px;
+  }
+  .consent-section h2{font-size:18px; margin:0 0 8px;}
+  .consent-section p{font-size:16px; margin:0 0 10px; color:#333;}
+  .consent-list{margin:0; padding-left:20px; font-size:16px;}
+  .consent-list li{margin-bottom:7px;}
+  .consent-action{
+    border-top:1px solid var(--line); margin-top:20px; padding-top:18px;
+  }
+  .consent-action .small{margin:0 0 12px;}
+
+  .btn{
+    display:inline-block; border:none; border-radius:8px; cursor:pointer;
+    font-size:17px; font-family:inherit; padding:13px 20px; font-weight:600;
+  }
+  .btn-primary{background:var(--brand); color:#fff;}
+  .btn-primary:hover{background:var(--brand-dark);}
+  .btn-block{display:block; width:100%; text-align:center;}
+  .btn-ghost{background:#fff; color:#555; border:1.5px solid #cfcfcf;}
+  .btn:disabled{cursor:not-allowed;opacity:.78;}
+  .btn-recorded{border-color:#99d7cd;background:#ecfdf5;color:#0f766e;}
+  .skip-link{
+    position:absolute;left:12px;top:12px;z-index:10;
+    transform:translateY(-160%);background:#fff;color:var(--brand);
+    border:2px solid var(--brand);border-radius:8px;padding:10px 14px;
+    font-weight:700;text-decoration:none;
+  }
+  .skip-link:focus{transform:translateY(0);}
+
+  .dialog{
+    background:#fff; border:1px solid #e0e0e0; border-radius:12px;
+    padding:26px 24px; box-shadow:0 4px 18px rgba(0,0,0,.08);
+    max-width:500px; margin:0 auto;
+  }
+  .dialog .logo{
+    width:54px;height:54px;border-radius:50%;background:var(--brand);
+    margin:4px auto 14px; display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:24px;font-weight:700;
+  }
+  .dialog h3{text-align:center;margin:0 0 4px;font-size:21px;}
+  .dialog .sub{text-align:center;color:var(--muted);font-size:16px;margin:0 0 18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:15px;color:#444;margin-bottom:5px;}
+  .field input{
+    width:100%;padding:12px 12px;border:1px solid #cfcfcf;border-radius:8px;
+    font-size:17px;font-family:inherit;
+  }
+  .perm-intro{font-size:15px;color:var(--muted);font-weight:600;margin:6px 0 8px;}
+  .perm{display:flex;gap:10px;align-items:flex-start;padding:11px 0;font-size:16.5px;}
+  .perm .ck{color:#2E7D32;flex:0 0 auto;font-weight:700;margin-top:1px;}
+  .perm-list{
+    max-height:168px; overflow-y:auto; padding-right:6px;
+    border:1px solid #eee; border-radius:8px; padding:4px 12px;
+  }
+  .perm-wrap{position:relative;}
+  .perm-wrap::after{
+    content:""; position:absolute; left:1px; right:12px; bottom:1px; height:34px;
+    pointer-events:none; border-radius:0 0 8px 8px;
+    background:linear-gradient(to bottom, rgba(255,255,255,0), #fff 88%);
+  }
+  .fineprint{font-size:13px;color:#9aa0a6;margin:14px 0 18px;}
+  .or-divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:#9aa0a6;font-size:13px;}
+  .or-divider::before,.or-divider::after{content:"";flex:1;height:1px;background:#e5e7eb;}
+  .social{
+    display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+    padding:12px;border:1.5px solid #d0d0d0;border-radius:8px;background:#fff;
+    font-size:16px;font-family:inherit;cursor:pointer;margin-bottom:10px;color:#222;font-weight:600;
+  }
+  .social:hover{background:#f7f7f7;}
+  .provider-icon{
+    width:28px; height:28px; display:inline-flex; align-items:center;
+    justify-content:center; flex:0 0 auto;
+  }
+  .provider-icon svg{width:24px;height:24px;display:block;}
+  .row-btns{display:flex;gap:10px;}
+  .row-btns .btn{flex:1;}
+  .divider{height:1px;background:#ececec;margin:14px 0;}
+
+  .mfa-card{text-align:center;}
+  .mfa-card .bell{font-size:34px;margin-bottom:8px;}
+  .codebox{
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px;letter-spacing:3px;
+    background:#f1f3f5;border-radius:8px;padding:12px;margin:10px 0 18px;
+  }
+  .mfa-options{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 18px;}
+  .mfa-option{
+    border:1.5px solid #cfd5dd;border-radius:8px;background:#fff;padding:12px;
+    font:700 18px ui-monospace,Menlo,Consolas,monospace;cursor:pointer;color:#222;
+  }
+  .mfa-option:hover{border-color:var(--brand);}
+  .mfa-option.selected{background:#eef6fb;border-color:var(--brand);color:#0c447c;}
+  .mfa-error{min-height:18px;margin:-8px 0 12px;font-size:13px;color:var(--danger);}
+  .stepdots{display:flex;gap:6px;justify-content:center;margin-bottom:16px;}
+  .stepdots span{width:7px;height:7px;border-radius:50%;background:#d2d6db;}
+  .stepdots span.on{background:var(--brand);}
+
+  .codeout{
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:26px;font-weight:700;
+    text-align:center;background:#eef6fb;border:1px dashed var(--brand);
+    border-radius:10px;padding:16px;margin:8px 0 6px;letter-spacing:2px;
+  }
+  .post-q{margin:0 0 18px;}
+  .post-q .qtext{font-size:14.5px;font-weight:600;margin-bottom:10px;}
+  fieldset.post-q{border:0;padding:0;}
+  legend.qtext{display:block;width:100%;}
+  .opt{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+    margin-bottom:8px;font-size:14px;cursor:pointer;}
+  .opt:hover{border-color:var(--brand);}
+  .opt input{margin-right:8px;}
+  .badge{display:inline-block;font-size:11px;color:var(--muted);border:1px solid var(--line);
+    border-radius:20px;padding:3px 10px;margin-bottom:14px;}
+  .simbar{
+    background:#fff8e1;border:1px solid #f0e0a8;border-radius:8px;
+    padding:8px 12px;margin-bottom:14px;font-size:12.5px;color:#7a5b00;text-align:center;
+  }
+  .demo-warning{display:none;margin:0 0 18px;}
+  .sso-as-line{font-size:16px;color:#444;}
+  .mfa-hint{font-size:13px;color:var(--muted);}
+  .recall-progress{font-size:14px;color:var(--muted);font-weight:600;margin:0 0 14px;}
+  .code-label{text-align:center;}
+  .survey-fallback{margin-top:14px;}
+  .withdraw-box{border-top:1px solid var(--line);margin-top:18px;padding-top:16px;}
+  .withdraw-confirm{display:none;margin-top:10px;font-size:14px;color:#0f766e;font-weight:600;}
+  .lab-footer{
+    border-top:1px solid var(--line); margin-top:20px; padding-top:12px;
+    text-align:right;
+  }
+  @media (max-width:640px){
+    body{padding:14px 10px;}
+    body.consent-active{padding:8px 10px;}
+    .panel{padding:24px 18px;}
+    #s-consent .dialog{padding:18px 16px;}
+    #s-consent .simbar{margin-bottom:10px;padding:7px 10px;font-size:12px;}
+    #s-consent .logo{width:46px;height:46px;margin-bottom:10px;font-size:21px;}
+    #s-consent .dialog .sub{margin-bottom:12px;}
+    #s-consent .divider{margin:10px 0;}
+    #s-consent .perm-list{max-height:148px;}
+    #s-consent .perm{padding:9px 0;font-size:15.5px;}
+    #s-consent .fineprint{margin:10px 0 14px;font-size:12.5px;}
+    .intro-head{padding:22px 18px 18px;}
+    .intro-head h1{font-size:25px;}
+    .intro-body{padding:18px;}
+    .intro-meta{grid-template-columns:1fr;}
+    .btn{font-size:16px;}
+  }
+  @media (max-width:359px){
+    body.consent-active{overflow-y:auto;align-items:flex-start;}
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#beginTaskBtn">Skip to begin task</a>
+<div class="stage">
+
+  <!-- ============ SCREEN 0: INTRO / CONSENT ============ -->
+  <section class="screen active panel intro-panel" id="s-intro" tabindex="-1" aria-labelledby="introTitle">
+    <div class="intro-head">
+      <span class="badge">UA SPECTRAL Lab — usable security and privacy research</span>
+      <h1 id="introTitle">AI Authentication Study</h1>
+      <p>Please read this page before deciding whether to begin the task.</p>
+    </div>
+    <div class="intro-body">
+      <div class="simbar demo-warning" id="demoWarning">Demo mode: task data will not be saved to the database.</div>
+      <div class="intro-meta" aria-label="Study summary">
+        <div class="meta-item">
+          <span class="meta-label">Time</span>
+          <span class="meta-value">About 3 minutes</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Activity</span>
+          <span class="meta-value">Simulated AI sign-in task</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Participation</span>
+          <span class="meta-value">Voluntary</span>
+        </div>
+      </div>
+
+      <p>You are invited to take part in a usable security and privacy research study
+         about authentication and account permissions in the AI era. The study is led
+         by Kofi Ampomah, a doctoral student in the UA SPECTRAL Lab (Department of
+         Computer Science, The University of Alabama), supervised by Dr. Le Nhat Tu.
+         Being in this study is optional.</p>
+
+      <div class="notice">
+        <p><strong>Please imagine these are your own accounts and act as you normally would.</strong>
+        The sign-in and AI permission screens are a realistic simulation for research.
+        They are not connected to any real account, and you will never enter a real password.</p>
+      </div>
+      <p class="small">Some elements of the task are designed for research purposes and may
+         not represent typical app behavior.</p>
+
+      <div class="consent-section">
+        <h2>What you will do</h2>
+        <p>You will complete a short interactive task that looks like signing in to an
+           AI-enabled app and reviewing an account permission screen, then answer a brief
+           recall question. At the end, you will receive an anonymous code to carry into
+           the survey.</p>
+      </div>
+
+      <div class="consent-section">
+        <h2>What we record</h2>
+        <ul class="consent-list">
+          <li>Which screen you are on and how long you spend there.</li>
+          <li>Which buttons you select during the simulated authentication and permission flow.</li>
+          <li>General interaction patterns during the task.</li>
+          <li>Your allow/cancel choice and your answers to the recall question.</li>
+        </ul>
+        <p>We do <strong>not</strong> record your name, real passwords, or any real account
+           credentials. The fields in the task are fake and are not submitted to any login
+           service.</p>
+      </div>
+
+      <div class="consent-section">
+        <h2>Privacy, risks, and choice</h2>
+        <p>The task is anonymous. The main possible risk is mild discomfort from being
+           asked to make decisions in a realistic authentication and permission-sharing
+           simulation. You can stop at any time by closing the page.</p>
+      </div>
+
+      <div class="consent-section">
+        <h2>Questions</h2>
+        <p class="small">Study contacts: Kofi Ampomah, kampomah@crimson.ua.edu, or
+           Kunal Sarna, ksarna@crimson.ua.edu. Concerns about your rights as a
+           participant: UA Office of Research Compliance, 1-877-820-3066,
+           rscompliance@ua.edu.</p>
+      </div>
+
+      <div class="consent-action">
+        <p class="small">By selecting the button below, you confirm that you have read this
+           information and agree to begin the research task.</p>
+        <button type="button" class="btn btn-primary btn-block" id="beginTaskBtn" onclick="begin()">I agree, begin the task</button>
+      </div>
+      <div class="small lab-footer">UA SPECTRAL Lab · The University of Alabama</div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 1: COMBINED SIGN-IN (chained group only) ============ -->
+  <section class="screen" id="s-pw" tabindex="-1" aria-labelledby="signinTitle">
+    <div class="dialog">
+      <div class="simbar">Simulation, imagine this is your account. No real login.</div>
+      <div class="stepdots"><span class="on"></span><span></span><span></span></div>
+      <div class="logo">T</div>
+      <h3 id="signinTitle">Sign in to TaskFlow</h3>
+      <p class="sub">Choose how you want to sign in</p>
+
+      <button type="button" class="social" data-next="s-sso" data-step="choose_provider_a">
+        <span class="provider-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <circle cx="12" cy="12" r="10" fill="#eef6fb" stroke="#0072B2" stroke-width="2"/>
+            <path d="M7 12h10M12 7v10" stroke="#0072B2" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+        </span> Continue with Provider A
+      </button>
+      <button type="button" class="social" data-next="s-sso" data-step="choose_provider_b">
+        <span class="provider-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <rect x="4" y="4" width="16" height="16" rx="5" fill="#f4f4f5" stroke="#52525b" stroke-width="2"/>
+            <circle cx="12" cy="12" r="4" fill="#52525b"/>
+          </svg>
+        </span> Continue with Provider B
+      </button>
+      <button type="button" class="social" data-next="s-sso" data-step="choose_provider_c">
+        <span class="provider-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M4 5h16v14H4z" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
+            <path d="M4 9h16M9 5v14" stroke="#4f46e5" stroke-width="2"/>
+          </svg>
+        </span> Continue with Provider C
+      </button>
+      <button type="button" class="social" data-next="s-sso" data-step="choose_provider_d">
+        <span class="provider-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 3l9 6v6l-9 6-9-6V9z" fill="#ecfdf5" stroke="#0f766e" stroke-width="2"/>
+            <path d="M8 12h8" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+        </span> Continue with Provider D
+      </button>
+
+      <div class="or-divider">or</div>
+
+      <div class="field"><label for="fakeEmail">Email</label><input id="fakeEmail" type="text" value="student@example.com" readonly autocomplete="off"></div>
+      <div class="field"><label for="fakePassword">Password</label><input id="fakePassword" type="password" value="practiceaccount" readonly autocomplete="off"></div>
+      <button type="button" class="btn btn-ghost btn-block" data-next="s-sso" data-step="choose_password">Sign in with email</button>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 2: SSO HANDOFF (chained group only) ============ -->
+  <section class="screen" id="s-sso" tabindex="-1" aria-labelledby="ssoTitle">
+    <div class="dialog">
+      <div class="simbar">Simulation, imagine this is your account. No real login.</div>
+      <div class="stepdots"><span class="on"></span><span class="on"></span><span></span></div>
+      <div class="logo" id="ssoLogo">G</div>
+      <h3 id="ssoTitle">Continue with Provider A</h3>
+      <p class="sub" id="ssoSub">TaskFlow wants to use your selected provider account to sign you in</p>
+      <div class="divider"></div>
+      <p class="sso-as-line">You are signing in as <strong id="ssoEmail">student@gmail.com</strong></p>
+      <div class="row-btns">
+        <button type="button" class="btn btn-ghost" data-next="s-pw" data-step="sso_use_another">Use another account</button>
+        <button type="button" class="btn btn-primary" data-next="s-mfa" data-step="sso">Continue</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 3: MFA PROMPT (chained group only) ============ -->
+  <section class="screen" id="s-mfa" tabindex="-1" aria-labelledby="mfaTitle">
+    <div class="dialog mfa-card">
+      <div class="simbar">Simulation, imagine this is your account. No real login.</div>
+      <div class="stepdots"><span class="on"></span><span class="on"></span><span class="on"></span></div>
+      <div class="bell">&#128276;</div>
+      <h3 id="mfaTitle">Verify it&#39;s you</h3>
+      <p class="sub">Approve the sign-in request to continue</p>
+      <div class="codebox" id="mfaCodeBox">--</div>
+      <p class="mfa-hint">Select the number shown above, then approve.</p>
+      <div class="mfa-options" aria-label="MFA number choices">
+        <button type="button" class="mfa-option" data-mfa-code="" aria-pressed="false">--</button>
+        <button type="button" class="mfa-option" data-mfa-code="" aria-pressed="false">--</button>
+        <button type="button" class="mfa-option" data-mfa-code="" aria-pressed="false">--</button>
+      </div>
+      <div class="mfa-error" id="mfaError" role="alert" aria-live="polite"></div>
+      <div class="row-btns">
+        <button type="button" class="btn btn-ghost" data-next="s-pw" data-step="mfa_deny">Deny</button>
+        <button type="button" class="btn btn-primary" id="mfaApproveBtn" data-next="s-consent" data-step="mfa_approve">Approve</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 4: CONSENT SCREEN (both groups, the key stimulus) ============ -->
+  <section class="screen" id="s-consent" tabindex="-1" aria-labelledby="consentTitle">
+    <div class="dialog" id="consentDialog">
+      <div class="simbar">Simulation, imagine this is your account. No real login.</div>
+      <div class="logo">A</div>
+      <h3 id="consentTitle">TaskFlow AI Assistant</h3>
+      <p class="sub">wants to connect to your account</p>
+      <div class="divider"></div>
+      <p class="perm-intro">This will allow TaskFlow AI Assistant to:</p>
+      <div class="perm-wrap">
+        <div class="perm-list" id="permList" tabindex="0" role="region" aria-label="Requested permissions">
+          <!-- Permission rows are injected by renderPermissions() so the planted
+               payment row can be placed first (top) or last (bottom) by arm. -->
+        </div>
+      </div>
+      <p class="fineprint">By continuing, you allow this app to use your information in line
+         with its terms of service and privacy policy.</p>
+      <div class="row-btns">
+        <button type="button" class="btn btn-ghost" data-decision="cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" data-decision="allow">Allow</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 5: POST-TASK RECALL (both groups) ============ -->
+  <section class="screen panel" id="s-recall" tabindex="-1" aria-labelledby="recallTitle">
+    <h1 id="recallTitle">One quick question</h1>
+    <p class="recall-progress">One more step before your code.</p>
+    <fieldset class="post-q">
+      <legend class="qtext">Thinking back to the screen you just saw, which of these did the
+        TaskFlow AI Assistant ask permission to do? Select all that you remember.</legend>
+      <!-- Recall options are injected by renderRecallOptions(): all six real
+           permissions plus two foils, shuffled so list position does not cue recall. -->
+      <div id="recallOptions"></div>
+    </fieldset>
+    <fieldset class="post-q">
+      <legend class="qtext">What was the name of the AI assistant on the permission screen you just saw?</legend>
+      <label class="opt"><input type="radio" name="assistant_name" value="taskflow_ai_assistant">TaskFlow AI Assistant</label>
+      <label class="opt"><input type="radio" name="assistant_name" value="studymate_assistant">StudyMate Assistant</label>
+      <label class="opt"><input type="radio" name="assistant_name" value="helper_ai">Helper AI</label>
+      <label class="opt"><input type="radio" name="assistant_name" value="dont_remember">I do not remember</label>
+    </fieldset>
+    <fieldset class="post-q">
+      <legend class="qtext">Did anything about the access it asked for seem broader than a
+        TaskFlow AI Assistant should need?</legend>
+      <label class="opt"><input type="radio" name="broad" value="yes">Yes</label>
+      <label class="opt"><input type="radio" name="broad" value="no">No</label>
+      <label class="opt"><input type="radio" name="broad" value="notsure">Not sure</label>
+    </fieldset>
+    <button type="button" class="btn btn-primary btn-block" onclick="finishRecall()">Continue</button>
+  </section>
+
+  <!-- ============ SCREEN 6: END / CODE + HANDOFF ============ -->
+  <section class="screen panel" id="s-end" tabindex="-1" aria-labelledby="endTitle">
+    <h1 id="endTitle">Task complete</h1>
+    <h2>Debrief</h2>
+    <p>This usable security and privacy study examines how carefully people review
+       authentication and permission screens for AI-enabled apps. One permission was
+       intentionally broad: TaskFlow AI Assistant asked to access and use saved payment
+       methods to make purchases on your behalf. The app was a simulation only and did
+       not connect to any real account.</p>
+    <p>This study is conducted by the UA SPECTRAL Lab at the University of Alabama.
+       If you have any questions about the research after completing the task, please
+       contact the study team at the email address listed on the intro page.</p>
+    <p>Thank you. Here is your code. The survey will pick it up automatically when you
+       click the button, but you can also copy it down just in case.</p>
+    <div class="codeout" id="codeOut">P-XXXXX</div>
+    <p class="small code-label">Your code</p>
+    <button type="button" class="btn btn-primary btn-block" id="toSurveyBtn">Continue to the short survey</button>
+    <div class="withdraw-box">
+      <p class="small">If you do not want your task data used, you may request removal now.
+         This will record a withdrawal request with your participant code.</p>
+      <button type="button" class="btn btn-ghost btn-block" id="withdrawBtn">Request removal of my task data</button>
+      <div class="withdraw-confirm" id="withdrawConfirm" role="status" aria-live="polite">Removal request recorded for this participant code.</div>
+    </div>
+    <p class="small survey-fallback">If the button does not open the survey, copy
+       your code above and open the survey link from your recruitment message, then paste
+       the code when asked.</p>
+    <div class="small lab-footer">UA SPECTRAL Lab · The University of Alabama</div>
+  </section>
+
+</div>
+
+<script>
+/* =====================================================================
+   CONFIG
+   ===================================================================== */
+const CONFIG = {
+  surveyBaseUrl: "https://REPLACE-WITH-YOUR-QUALTRICS-LINK",
+  surveyPidParam: "pid",
+  supabaseUrl: "",
+  supabaseAnonKey: "",
+  supabaseTable: "task_events",
+  supabaseWithdrawalsTable: "task_withdrawals",
+  abandonmentBeaconUrl: ""
+};
+
+/* =====================================================================
+   STATE + DATA RECORD
+   ===================================================================== */
+function makePid(){
+  if (window.crypto && crypto.randomUUID) {
+    return "P-" + crypto.randomUUID().replace(/-/g, "").slice(0,10).toUpperCase();
+  }
+  const bytes = new Uint8Array(8);
+  if (window.crypto && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+    return "P-" + [...bytes].map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,10).toUpperCase();
+  }
+  return "P-" + Date.now().toString(36).toUpperCase();
+}
+
+const PID = makePid();
+
+// Factor 1: A = fresh (consent first), B = chained (3 steps then consent)
+const CONDITION = Math.random() < 0.5 ? "A_fresh" : "B_chained";
+// Factor 2: placement of the planted over-broad permission within the list.
+// "top" = planted payment row renders first; "bottom" = renders last.
+const PLACEMENT = Math.random() < 0.5 ? "top" : "bottom";
+const PAGE_START_MS = performance.now();
+const MFA_CHALLENGE = buildMfaChallenge();
+
+// Permission catalogue. The planted item is flagged so renderPermissions()
+// can position it by arm. Non-planted items keep a fixed relative order; only
+// the planted row moves, so the manipulation is position, not content.
+const PERMISSIONS = [
+  { key:"name_email", planted:false, text:"See your name, email address, and profile picture", recallLabel:"See my name and email" },
+  { key:"calendar",   planted:false, text:"View and add events to your calendar", recallLabel:"Add events to my calendar" },
+  { key:"files",      planted:false, text:"See files you have opened recently", recallLabel:"See files I opened recently" },
+  { key:"settings",   planted:false, text:"Save your preferences and settings", recallLabel:"Save my preferences and settings" },
+  { key:"payment",    planted:true,  text:"Access and use your saved payment methods to make purchases on your behalf", recallLabel:"Use my saved payment methods to make purchases" },
+  { key:"persist",    planted:false, text:"Stay connected until you remove access", recallLabel:"Stay connected until I remove access" }
+];
+
+// Foils: permissions that were NOT on the consent screen. Selecting any of
+// these is a false alarm (remembering something that was never shown).
+const RECALL_FOILS = [
+  { key:"social",       recallLabel:"Post to my social media" },
+  { key:"delete_email", recallLabel:"Permanently delete my emails" }
+];
+
+// Keys that count as real (on-screen) and as foils, for scoring.
+const REAL_PERMISSION_KEYS = PERMISSIONS.map(p=>p.key);
+const FOIL_KEYS = RECALL_FOILS.map(f=>f.key);
+
+const data = {
+  pid: PID,
+  condition: CONDITION,
+  placement: PLACEMENT,
+  cell: CONDITION + "__" + PLACEMENT,
+  signin_choice: null,
+  user_agent: navigator.userAgent,
+  started_at: new Date().toISOString(),
+  consented_at: null,
+  timestamps: {
+    started_at: null,
+    consented_at: null,
+    finished_at: null,
+    abandoned_at: null
+  },
+  screen_times_ms: {},
+  screen_visits: [],
+  chain_clicks: [],
+  consent: {
+    time_on_screen_ms: null,
+    placement: PLACEMENT,
+    planted_position: null,        // 1-based index of planted row as rendered
+    planted_visible_initially: null, // was planted row in view before any scroll
+    scrolled_permissions: false,
+    max_scroll_pct: 0,
+    planted_seen: false,
+    planted_seen_at_ms: null,
+    decision: null,
+    decision_time_ms: null,
+    decision_at: null,
+    scroll_decision_scenario: null,
+    seen_decision_scenario: null,
+    four_cell_scenario: null
+  },
+  recall: {
+    remembered: [],
+    item_hits: {},
+    hits: [],
+    hit_count: null,
+    attention_check: null,
+    saw_planted_payment: null,
+    false_alarm: null,
+    false_alarm_selected: [],
+    false_alarm_count: null,
+    felt_broad: null
+  },
+  mfa: {
+    challenge_code: MFA_CHALLENGE.correct,
+    selected_code: null,
+    attempts: [],
+    approved_with_match: null
+  },
+  withdrawal: null,
+  events: [],
+  abandoned: false,
+  abandonment: null,
+  finished_at: null
+};
+data.timestamps.started_at = data.started_at;
+
+let screenEnter = performance.now();
+let currentId = "s-intro";
+let currentVisit = {
+  screen: currentId,
+  entered_at: data.started_at,
+  entered_ms: 0,
+  exited_at: null,
+  duration_ms: null
+};
+
+function nowIso(){ return new Date().toISOString(); }
+function elapsedMs(){ return Math.round(performance.now() - PAGE_START_MS); }
+
+function logEvent(type, details){
+  const event = {
+    type: type,
+    at: nowIso(),
+    at_ms: elapsedMs(),
+    screen: currentId,
+    details: details || {}
+  };
+  data.events.push(event);
+  console.log(JSON.stringify({
+    event: type,
+    pid: data.pid,
+    condition: data.condition,
+    placement: data.placement,
+    at: event.at,
+    at_ms: event.at_ms,
+    screen: event.screen,
+    details: event.details
+  }));
+}
+
+logEvent("started", { initial_screen: currentId, cell: data.cell });
+
+/* ---- render the permission list according to placement arm ---- */
+function renderPermissions(){
+  const list = document.getElementById("permList");
+  const planted = PERMISSIONS.find(p=>p.planted);
+  const others = PERMISSIONS.filter(p=>!p.planted);
+  let ordered;
+  if (PLACEMENT === "top") {
+    ordered = [planted, ...others];
+  } else {
+    ordered = [...others, planted];
+  }
+  list.innerHTML = "";
+  ordered.forEach((perm, idx)=>{
+    if (perm.planted) data.consent.planted_position = idx + 1;
+    const row = document.createElement("div");
+    row.className = "perm";
+    if (perm.planted) row.setAttribute("data-planted", "true");
+    const ck = document.createElement("span");
+    ck.className = "ck";
+    ck.innerHTML = "&#10003;";
+    const txt = document.createElement("span");
+    txt.textContent = perm.text;
+    row.appendChild(ck);
+    row.appendChild(txt);
+    list.appendChild(row);
+  });
+}
+
+/* ---- build the recall checkboxes: all six real permissions plus two foils,
+   shuffled so list position does not cue recall ---- */
+function renderRecallOptions(){
+  const container = document.getElementById("recallOptions");
+  if (!container) return;
+  const items = [
+    ...PERMISSIONS.map(p=>({ value:p.key, label:p.recallLabel, real:true })),
+    ...RECALL_FOILS.map(f=>({ value:f.key, label:f.recallLabel, real:false }))
+  ];
+  const ordered = shuffleArray(items);
+  container.innerHTML = "";
+  ordered.forEach(item=>{
+    const label = document.createElement("label");
+    label.className = "opt";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = item.value;
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(" " + item.label));
+    container.appendChild(label);
+  });
+}
+
+function randomTwoDigitCode(){
+  const bytes = new Uint8Array(1);
+  if (window.crypto && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+    return String(10 + (bytes[0] % 90));
+  }
+  return String(10 + Math.floor(Math.random() * 90));
+}
+
+function shuffleArray(values){
+  const out = values.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const bytes = new Uint8Array(1);
+    const rand = window.crypto && crypto.getRandomValues
+      ? (crypto.getRandomValues(bytes), bytes[0] / 256)
+      : Math.random();
+    const j = Math.floor(rand * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function buildMfaChallenge(){
+  const codes = new Set();
+  while (codes.size < 3) codes.add(randomTwoDigitCode());
+  const all = [...codes];
+  return { correct: all[0], options: shuffleArray(all) };
+}
+
+function renderMfaChallenge(){
+  document.getElementById("mfaCodeBox").textContent = data.mfa.challenge_code;
+  document.querySelectorAll("[data-mfa-code]").forEach((btn, index)=>{
+    const code = MFA_CHALLENGE.options[index];
+    btn.textContent = code;
+    btn.setAttribute("data-mfa-code", code);
+  });
+}
+
+renderMfaChallenge();
+renderRecallOptions();
+
+function updateDemoWarning(){
+  const banner = document.getElementById("demoWarning");
+  if (banner) banner.style.display = (CONFIG.supabaseUrl && CONFIG.supabaseAnonKey) ? "none" : "block";
+}
+updateDemoWarning();
+
+function show(id){
+  const now = performance.now();
+  const leftAt = nowIso();
+  const duration = Math.round(now - screenEnter);
+  data.screen_times_ms[currentId] = Math.round((data.screen_times_ms[currentId]||0) + duration);
+  currentVisit.exited_at = leftAt;
+  currentVisit.duration_ms = duration;
+  data.screen_visits.push(currentVisit);
+  document.getElementById(currentId).classList.remove("active");
+  document.getElementById(id).classList.add("active");
+  document.body.classList.toggle("consent-active", id === "s-consent");
+  logEvent("screen_change", { from: currentId, to: id, previous_duration_ms: duration });
+  currentId = id;
+  screenEnter = performance.now();
+  currentVisit = {
+    screen: currentId,
+    entered_at: nowIso(),
+    entered_ms: elapsedMs(),
+    exited_at: null,
+    duration_ms: null
+  };
+  window.scrollTo(0,0);
+  document.getElementById(id).focus({preventScroll:true});
+}
+
+/* =====================================================================
+   FLOW
+   ===================================================================== */
+function begin(){
+  data.consented_at = nowIso();
+  data.timestamps.consented_at = data.consented_at;
+  logEvent("task_begin", { condition: CONDITION, placement: PLACEMENT, cell: data.cell });
+  if (CONDITION === "B_chained") {
+    show("s-pw");
+  } else {
+    show("s-consent");
+    armConsent();
+  }
+}
+
+document.querySelectorAll("[data-next]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const step = btn.getAttribute("data-step");
+    const next = btn.getAttribute("data-next");
+    const clickRecord = {
+      step: step,
+      from: currentId,
+      to: next,
+      at: nowIso(),
+      at_ms: elapsedMs()
+    };
+
+    if (step && step.indexOf("choose_") === 0) {
+      data.signin_choice = step.replace("choose_","");
+      clickRecord.signin_choice = data.signin_choice;
+      const map = {
+        provider_a: {logo:"A", title:"Continue with Provider A", sub:"TaskFlow wants to use your Provider A account to sign you in", email:"student@provider-a.example"},
+        provider_b: {logo:"B", title:"Continue with Provider B", sub:"TaskFlow wants to use your Provider B account to sign you in", email:"student@provider-b.example"},
+        provider_c: {logo:"C", title:"Continue with Provider C", sub:"TaskFlow wants to use your Provider C account to sign you in", email:"student@provider-c.example"},
+        provider_d: {logo:"D", title:"Continue with Provider D", sub:"TaskFlow wants to use your Provider D account to sign you in", email:"student@provider-d.example"},
+        password:  {logo:"T", title:"Confirm it\u2019s you",    sub:"TaskFlow needs to verify this sign-in to continue",           email:"student@example.com"}
+      }[data.signin_choice];
+      document.getElementById("ssoLogo").textContent = map.logo;
+      document.getElementById("ssoTitle").textContent = map.title;
+      document.getElementById("ssoSub").textContent = map.sub;
+      document.getElementById("ssoEmail").textContent = map.email;
+    }
+
+    if (step === "mfa_approve") {
+      const matched = data.mfa.selected_code === data.mfa.challenge_code;
+      data.mfa.approved_with_match = matched;
+      data.mfa.attempts.push({
+        selected_code: data.mfa.selected_code,
+        matched: matched,
+        at: nowIso(),
+        at_ms: elapsedMs()
+      });
+      clickRecord.mfa_selected_code = data.mfa.selected_code;
+      clickRecord.mfa_matched = matched;
+      if (!matched) {
+        document.getElementById("mfaError").textContent = "Select the matching number before approving.";
+        logEvent("mfa_approve_blocked", clickRecord);
+        return;
+      }
+    }
+
+    data.chain_clicks.push(clickRecord);
+    logEvent("chain_click", clickRecord);
+    show(next);
+    if (next === "s-consent") armConsent();
+  });
+});
+
+document.querySelectorAll("[data-mfa-code]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll("[data-mfa-code]").forEach(b=>{
+      b.classList.remove("selected");
+      b.setAttribute("aria-pressed", "false");
+    });
+    btn.classList.add("selected");
+    btn.setAttribute("aria-pressed", "true");
+    data.mfa.selected_code = btn.getAttribute("data-mfa-code");
+    document.getElementById("mfaError").textContent = "";
+    logEvent("mfa_code_selected", {
+      selected_code: data.mfa.selected_code,
+      matched: data.mfa.selected_code === data.mfa.challenge_code
+    });
+  });
+});
+
+/* ---- the consent screen: attention capture ---- */
+let consentEnter = null;
+let consentArmed = false;
+function armConsent(){
+  if (consentArmed) return;
+  consentArmed = true;
+  renderPermissions();           // build the list for this placement arm
+  consentEnter = performance.now();
+  const dlg = document.getElementById("consentDialog");
+  const list = document.getElementById("permList");
+
+  function plantedInView(){
+    const planted = list.querySelector('[data-planted="true"]');
+    if (!planted) return false;
+    const r = planted.getBoundingClientRect(), lr = list.getBoundingClientRect();
+    return (r.top < lr.bottom && r.bottom > lr.top);
+  }
+
+  // record whether the planted row was visible before any scrolling occurred
+  data.consent.planted_visible_initially = plantedInView();
+  if (data.consent.planted_visible_initially) {
+    data.consent.planted_seen = true;
+    data.consent.planted_seen_at_ms = 0;
+    logEvent("planted_permission_seen", {
+      consent_time_ms: 0,
+      max_scroll_pct: 0,
+      visible_without_scroll: true,
+      placement: PLACEMENT,
+      planted_position: data.consent.planted_position
+    });
+  }
+
+  function trackScroll(){
+    const pct = Math.min(100, Math.round((list.scrollTop / Math.max(1,(list.scrollHeight-list.clientHeight)))*100));
+    if (pct > data.consent.max_scroll_pct) data.consent.max_scroll_pct = pct;
+    if (pct > 5) data.consent.scrolled_permissions = true;
+    if (plantedInView() && !data.consent.planted_seen) {
+      data.consent.planted_seen = true;
+      data.consent.planted_seen_at_ms = Math.round(performance.now() - consentEnter);
+      logEvent("planted_permission_seen", {
+        consent_time_ms: data.consent.planted_seen_at_ms,
+        max_scroll_pct: data.consent.max_scroll_pct,
+        visible_without_scroll: false,
+        placement: PLACEMENT,
+        planted_position: data.consent.planted_position
+      });
+    }
+  }
+  list.addEventListener("scroll", trackScroll, {passive:true});
+  trackScroll();
+
+  dlg.querySelectorAll("[data-decision]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      data.consent.decision = b.getAttribute("data-decision");
+      data.consent.time_on_screen_ms = Math.round(performance.now() - consentEnter);
+      data.consent.decision_time_ms = data.consent.time_on_screen_ms;
+      data.consent.decision_at = nowIso();
+      data.consent.scroll_decision_scenario =
+        data.consent.decision + (data.consent.scrolled_permissions ? "_after_scrolling" : "_without_scrolling");
+      data.consent.seen_decision_scenario =
+        data.consent.decision + (data.consent.planted_seen ? "_after_seeing_planted" : "_without_seeing_planted");
+      data.consent.four_cell_scenario = data.consent.planted_seen
+        ? data.consent.decision + "-after-seeing"
+        : (data.consent.scrolled_permissions
+          ? data.consent.decision + "-scrolled-without-seeing"
+          : data.consent.decision + "-without-scrolling");
+      logEvent("consent_decision", {
+        decision: data.consent.decision,
+        decision_time_ms: data.consent.decision_time_ms,
+        placement: PLACEMENT,
+        planted_position: data.consent.planted_position,
+        planted_visible_initially: data.consent.planted_visible_initially,
+        scrolled_permissions: data.consent.scrolled_permissions,
+        max_scroll_pct: data.consent.max_scroll_pct,
+        planted_seen: data.consent.planted_seen,
+        scroll_decision_scenario: data.consent.scroll_decision_scenario,
+        seen_decision_scenario: data.consent.seen_decision_scenario,
+        four_cell_scenario: data.consent.four_cell_scenario
+      });
+      list.removeEventListener("scroll", trackScroll);
+      show("s-recall");
+    });
+  });
+}
+
+/* ---- post-task recall scoring ----
+   With all six real permissions plus two foils now offered, recall is scored
+   per item. saw_planted_payment keys to "payment" (matches the consent key).
+   Hits = real permissions correctly remembered. False alarms = foils selected. */
+function finishRecall(){
+  const checked = [...document.querySelectorAll('#s-recall input[type="checkbox"]:checked')].map(c=>c.value);
+  data.recall.remembered = checked;
+
+  // per-item hit map across the six real permissions (true = remembered)
+  data.recall.item_hits = {};
+  REAL_PERMISSION_KEYS.forEach(k=>{ data.recall.item_hits[k] = checked.includes(k); });
+
+  // planted payment recall (primary RQ2 measure)
+  data.recall.saw_planted_payment = checked.includes("payment");
+
+  // hit and false-alarm counts
+  data.recall.hits = checked.filter(v=>REAL_PERMISSION_KEYS.includes(v));
+  data.recall.hit_count = data.recall.hits.length;
+  data.recall.false_alarm_selected = checked.filter(v=>FOIL_KEYS.includes(v));
+  data.recall.false_alarm = data.recall.false_alarm_selected.length > 0;
+  data.recall.false_alarm_count = data.recall.false_alarm_selected.length;
+
+  const assistantName = document.querySelector('#s-recall input[name="assistant_name"]:checked');
+  data.recall.attention_check = assistantName ? {
+    selected: assistantName.value,
+    correct: assistantName.value === "taskflow_ai_assistant"
+  } : null;
+  const broad = document.querySelector('#s-recall input[name="broad"]:checked');
+  data.recall.felt_broad = broad ? broad.value : null;
+  logEvent("recall_submitted", data.recall);
+  endTask();
+}
+
+/* =====================================================================
+   FINISH: save + handoff
+   ===================================================================== */
+function endTask(){
+  document.getElementById("codeOut").textContent = PID;
+  // carry pid, condition, and placement through to the survey
+  const sep = CONFIG.surveyBaseUrl.includes("?") ? "&" : "?";
+  const url = CONFIG.surveyBaseUrl + sep
+            + CONFIG.surveyPidParam + "=" + encodeURIComponent(PID)
+            + "&condition=" + encodeURIComponent(CONDITION)
+            + "&placement=" + encodeURIComponent(PLACEMENT);
+  document.getElementById("toSurveyBtn").onclick = ()=>{ window.location.href = url; };
+  document.getElementById("withdrawBtn").onclick = requestWithdrawal;
+
+  show("s-end");
+  data.finished_at = nowIso();
+  data.timestamps.finished_at = data.finished_at;
+  logEvent("finished", { total_time_ms: elapsedMs() });
+  saveData();
+}
+
+function postSupabase(table, row, keepalive){
+  if (!CONFIG.supabaseUrl || !CONFIG.supabaseAnonKey) return Promise.resolve(null);
+  return fetch(CONFIG.supabaseUrl + "/rest/v1/" + table, {
+    method:"POST",
+    keepalive: !!keepalive,
+    headers:{
+      "Content-Type":"application/json",
+      "apikey":CONFIG.supabaseAnonKey,
+      "Authorization":"Bearer "+CONFIG.supabaseAnonKey,
+      "Prefer":"return=minimal"
+    },
+    body: JSON.stringify(row)
+  });
+}
+
+async function requestWithdrawal(){
+  const withdrawBtn = document.getElementById("withdrawBtn");
+  if (withdrawBtn) {
+    withdrawBtn.disabled = true;
+    withdrawBtn.classList.add("btn-recorded");
+    withdrawBtn.textContent = "Removal request recorded.";
+  }
+  data.withdrawal = {
+    requested: true,
+    at: nowIso(),
+    at_ms: elapsedMs(),
+    pid: data.pid
+  };
+  logEvent("withdrawal_requested", data.withdrawal);
+  document.getElementById("withdrawConfirm").style.display = "block";
+
+  if (CONFIG.supabaseUrl && CONFIG.supabaseAnonKey) {
+    try{
+      const res = await postSupabase(CONFIG.supabaseWithdrawalsTable, {
+        pid: data.pid,
+        requested_at: data.withdrawal.at,
+        payload: data.withdrawal
+      }, false);
+      console.log("Supabase withdrawal status:", res.status);
+    }catch(e){ console.error("Supabase withdrawal save failed:", e); }
+  } else {
+    console.log("Demo mode withdrawal request:", JSON.stringify(data.withdrawal));
+  }
+}
+
+function sendAbandonment(){
+  const payload = {
+    pid: data.pid,
+    condition: data.condition,
+    placement: data.placement,
+    payload: data
+  };
+  if (CONFIG.supabaseUrl && CONFIG.supabaseAnonKey) {
+    const beaconTarget = CONFIG.abandonmentBeaconUrl || (CONFIG.supabaseUrl + "/rest/v1/" + CONFIG.supabaseTable);
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(payload)], {type:"application/json"});
+      navigator.sendBeacon(beaconTarget, blob);
+    }
+    postSupabase(CONFIG.supabaseTable, payload, true).catch(()=>{});
+  }
+}
+
+window.addEventListener("beforeunload", ()=>{
+  if (data.finished_at) return;
+  const duration = Math.round(performance.now() - screenEnter);
+  data.screen_times_ms[currentId] = Math.round((data.screen_times_ms[currentId]||0) + duration);
+  data.abandoned = true;
+  data.abandonment = {
+    screen: currentId,
+    at: nowIso(),
+    at_ms: elapsedMs(),
+    screen_duration_ms: duration
+  };
+  data.timestamps.abandoned_at = data.abandonment.at;
+  if (!CONFIG.supabaseUrl) {
+    console.log(JSON.stringify({
+      event: "abandoned",
+      pid: data.pid,
+      condition: data.condition,
+      placement: data.placement,
+      at: data.abandonment.at,
+      screen: currentId,
+      data: data
+    }));
+  }
+  sendAbandonment();
+});
+
+async function saveData(){
+  console.log("==== TASK DATA (copy/inspect) ====");
+  console.log(JSON.stringify(data, null, 2));
+
+  if (CONFIG.supabaseUrl && CONFIG.supabaseAnonKey) {
+    try{
+      const res = await postSupabase(CONFIG.supabaseTable, { pid:data.pid, condition:data.condition, placement:data.placement, payload:data }, false);
+      console.log("Supabase save status:", res.status);
+    }catch(e){ console.error("Supabase save failed:", e); }
+  } else {
+    console.log("(Demo mode: Supabase not configured, data logged above only.)");
+  }
+}
+
+console.info(
+  "Task deployment state: pid=" + PID +
+  " condition=" + CONDITION +
+  " placement=" + PLACEMENT +
+  " cell=" + data.cell +
+  " supabase_configured=" + !!(CONFIG.supabaseUrl && CONFIG.supabaseAnonKey) +
+  " survey_url_configured=" + !!(CONFIG.surveyBaseUrl && !CONFIG.surveyBaseUrl.includes("REPLACE-WITH")) +
+  " mfa_challenge_code=" + data.mfa.challenge_code
+);
+</script>
+</body>
+</html>
