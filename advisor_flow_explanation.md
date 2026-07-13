@@ -1,30 +1,51 @@
-# AI Authentication Study Flow
+# AI Authentication Study: Behavioral Task Flow
 
-This behavioral task is designed for a usable security and privacy study about authentication and account permissions in the AI era.
+Behavioral task for a usable security and privacy study on authentication and
+account permissions in the AI era (UA SPECTRAL Lab, University of Alabama).
 
-Participants first see an informed research consent page. After they agree to begin, the page randomly assigns them to one of two conditions:
+## Design
 
-- **Group A / Fresh:** the participant goes directly to the AI permission screen.
-- **Group B / Chained:** the participant completes a simulated authentication chain first: sign-in choice, provider handoff, and MFA verification. The participant can also use realistic back-navigation choices such as "Use another account" or "Deny," which return them to the sign-in choice screen.
+2x2 between-subjects. Each page load randomly assigns one cell:
 
-Both groups then see the same permission screen for **TaskFlow AI Assistant**. The key behavioral stimulus is a broad permission placed below the visible fold: permission to read, send, and permanently delete emails. This lets the study compare whether participants notice over-broad access and whether attention changes after a chained authentication flow.
+| Factor | Levels | Manipulates |
+|---|---|---|
+| Chain | Fresh (consent screen shown cold) vs. Chained (sign-in choice, provider handoff, MFA verification, then consent) | Cascade attention decay (RQ3) |
+| Placement | Planted permission rendered first (top) vs. last (bottom) in the list | Position effects on noticing and recall (RQ2) |
 
-After the consent decision, participants complete a recall check, receive a debrief explaining the purpose of the task and the broad permission, and then receive an anonymous participant code for the Qualtrics survey.
+The permission set is identical across arms; only the position of the planted
+row varies. The scrollbox height is constant, so scroll demand is held equal.
 
-## Data Captured
+## Flow
 
-The HTML task records:
+1. **Research consent page.** Participant reads study information and agrees to begin.
+2. **Authentication chain** (chained arm only). Sign-in method choice, provider
+   handoff, and a number-matching MFA prompt. Realistic back-navigation
+   ("Use another account," "Deny") returns to the sign-in screen and is logged.
+3. **AI consent screen** (all arms). TaskFlow AI Assistant requests six
+   permissions. The planted over-broad item is access to saved payment methods
+   to make purchases on the participant's behalf. Participant allows or cancels.
+4. **Recall check.** All six real permissions plus two foils (post to social
+   media; permanently delete emails), shuffled. Also includes an assistant-name
+   attention check and a perceived-breadth question.
+5. **Debrief and handoff.** Debrief text discloses the planted permission, then
+   an anonymous participant code carries into Qualtrics via URL parameters
+   (pid, condition, placement), with a data-withdrawal option.
 
-- participant ID and assigned condition
-- selected sign-in method
-- time spent on each screen
-- sequence of authentication clicks and any back-navigation loops
-- consent-screen time
-- whether the permission area was scrolled
-- maximum scroll depth
-- whether the planted broad permission was visible
-- allow or cancel decision
-- recall answers and false-alarm selections
-- mid-task abandonment where feasible
+## Data captured
 
-The participant code links the behavioral task to the Qualtrics survey without collecting real login credentials or real account information.
+- Participant code, condition, placement, and cell assignment
+- Selected sign-in method and full sequence of chain clicks, including
+  back-navigation loops and MFA attempts (selected code, match outcome)
+- Time on each screen and screen visit sequence
+- Consent screen: time on screen, whether the list was scrolled, maximum
+  scroll depth, whether the planted row was visible before any scrolling,
+  whether and when it entered the viewport
+- Decision (allow or cancel), decision latency, and combined decision
+  scenarios (decision x scrolled x planted seen)
+- Recall: per-item hits across the six real permissions, planted-payment
+  recall, foil false alarms, assistant-name attention check, felt-breadth
+  response
+- Withdrawal requests and mid-task abandonment where feasible
+
+No real credentials or account information are collected. The participant code
+joins task records to survey responses.

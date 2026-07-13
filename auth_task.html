@@ -318,6 +318,13 @@ DESIGN (updated): 2x2 between-subjects.
       </div>
 
       <div class="consent-section">
+        <h2>Your task</h2>
+        <p>You want TaskFlow AI Assistant to help organize your class schedule and
+           recent study files. Please decide as you normally would when you review
+           the access request.</p>
+      </div>
+
+      <div class="consent-section">
         <h2>What we record</h2>
         <ul class="consent-list">
           <li>Which screen you are on and how long you spend there.</li>
@@ -499,20 +506,13 @@ DESIGN (updated): 2x2 between-subjects.
   <!-- ============ SCREEN 6: END / CODE + HANDOFF ============ -->
   <section class="screen panel" id="s-end" tabindex="-1" aria-labelledby="endTitle">
     <h1 id="endTitle">Task complete</h1>
-    <h2>Debrief</h2>
-    <p>This usable security and privacy study examines how carefully people review
-       authentication and permission screens for AI-enabled apps. One permission was
-       intentionally broad: TaskFlow AI Assistant asked to access and use saved payment
-       methods to make purchases on your behalf. The app was a simulation only and did
-       not connect to any real account.</p>
-    <p>This study is conducted by the UA SPECTRAL Lab at the University of Alabama.
-       If you have any questions about the research after completing the task, please
-       contact the study team at the email address listed on the intro page.</p>
-    <p>Thank you. Here is your code. The survey will pick it up automatically when you
-       click the button, but you can also copy it down just in case.</p>
+    <p>Thank you. Here is your anonymous participant code. The survey will pick it
+       up automatically when you click the button, but you can also copy it down
+       just in case.</p>
     <div class="codeout" id="codeOut">P-XXXXX</div>
     <p class="small code-label">Your code</p>
-    <button type="button" class="btn btn-primary btn-block" id="toSurveyBtn">Continue to the short survey</button>
+    <p class="small" id="saveStatus" role="status" aria-live="polite">Saving task data...</p>
+    <button type="button" class="btn btn-primary btn-block" id="toSurveyBtn" disabled>Saving task data...</button>
     <div class="withdraw-box">
       <p class="small">If you do not want your task data used, you may request removal now.
          This will record a withdrawal request with your participant code.</p>
@@ -604,6 +604,13 @@ const data = {
     finished_at: null,
     abandoned_at: null
   },
+  environment: {
+    viewport_width_px: window.innerWidth,
+    viewport_height_px: window.innerHeight,
+    screen_width_px: window.screen ? window.screen.width : null,
+    screen_height_px: window.screen ? window.screen.height : null,
+    device_pixel_ratio: window.devicePixelRatio || 1
+  },
   screen_times_ms: {},
   screen_visits: [],
   chain_clicks: [],
@@ -611,7 +618,12 @@ const data = {
     time_on_screen_ms: null,
     placement: PLACEMENT,
     planted_position: null,        // 1-based index of planted row as rendered
-    planted_visible_initially: null, // was planted row in view before any scroll
+    planted_visible_initially: null, // was planted row mostly in view before any scroll
+    planted_seen_threshold_pct: 75,  // minimum visible portion of the row needed to count as seen
+    permission_list_client_height_px: null,
+    permission_list_scroll_height_px: null,
+    viewport_width_px_at_consent: null,
+    viewport_height_px_at_consent: null,
     scrolled_permissions: false,
     max_scroll_pct: 0,
     planted_seen: false,
@@ -625,6 +637,7 @@ const data = {
   },
   recall: {
     remembered: [],
+    option_order: [],
     item_hits: {},
     hits: [],
     hit_count: null,
@@ -723,6 +736,7 @@ function renderRecallOptions(){
     ...RECALL_FOILS.map(f=>({ value:f.key, label:f.recallLabel, real:false }))
   ];
   const ordered = shuffleArray(items);
+  data.recall.option_order = ordered.map(item=>item.value);
   container.innerHTML = "";
   ordered.forEach(item=>{
     const label = document.createElement("label");
@@ -904,14 +918,21 @@ function armConsent(){
   const dlg = document.getElementById("consentDialog");
   const list = document.getElementById("permList");
 
+  data.consent.permission_list_client_height_px = list.clientHeight;
+  data.consent.permission_list_scroll_height_px = list.scrollHeight;
+  data.consent.viewport_width_px_at_consent = window.innerWidth;
+  data.consent.viewport_height_px_at_consent = window.innerHeight;
+
   function plantedInView(){
     const planted = list.querySelector('[data-planted="true"]');
     if (!planted) return false;
     const r = planted.getBoundingClientRect(), lr = list.getBoundingClientRect();
-    return (r.top < lr.bottom && r.bottom > lr.top);
+    const visibleHeight = Math.max(0, Math.min(r.bottom, lr.bottom) - Math.max(r.top, lr.top));
+    const visiblePct = Math.round((visibleHeight / Math.max(1, r.height)) * 100);
+    return visiblePct >= data.consent.planted_seen_threshold_pct;
   }
 
-  // record whether the planted row was visible before any scrolling occurred
+  // record whether at least 75% of the planted row was visible before any scrolling occurred
   data.consent.planted_visible_initially = plantedInView();
   if (data.consent.planted_visible_initially) {
     data.consent.planted_seen = true;
@@ -921,7 +942,8 @@ function armConsent(){
       max_scroll_pct: 0,
       visible_without_scroll: true,
       placement: PLACEMENT,
-      planted_position: data.consent.planted_position
+      planted_position: data.consent.planted_position,
+      planted_seen_threshold_pct: data.consent.planted_seen_threshold_pct
     });
   }
 
@@ -937,7 +959,8 @@ function armConsent(){
         max_scroll_pct: data.consent.max_scroll_pct,
         visible_without_scroll: false,
         placement: PLACEMENT,
-        planted_position: data.consent.planted_position
+        planted_position: data.consent.planted_position,
+        planted_seen_threshold_pct: data.consent.planted_seen_threshold_pct
       });
     }
   }
@@ -968,6 +991,11 @@ function armConsent(){
         scrolled_permissions: data.consent.scrolled_permissions,
         max_scroll_pct: data.consent.max_scroll_pct,
         planted_seen: data.consent.planted_seen,
+        planted_seen_threshold_pct: data.consent.planted_seen_threshold_pct,
+        permission_list_client_height_px: data.consent.permission_list_client_height_px,
+        permission_list_scroll_height_px: data.consent.permission_list_scroll_height_px,
+        viewport_width_px_at_consent: data.consent.viewport_width_px_at_consent,
+        viewport_height_px_at_consent: data.consent.viewport_height_px_at_consent,
         scroll_decision_scenario: data.consent.scroll_decision_scenario,
         seen_decision_scenario: data.consent.seen_decision_scenario,
         four_cell_scenario: data.consent.four_cell_scenario
@@ -1022,14 +1050,28 @@ function endTask(){
             + CONFIG.surveyPidParam + "=" + encodeURIComponent(PID)
             + "&condition=" + encodeURIComponent(CONDITION)
             + "&placement=" + encodeURIComponent(PLACEMENT);
-  document.getElementById("toSurveyBtn").onclick = ()=>{ window.location.href = url; };
+
+  const surveyBtn = document.getElementById("toSurveyBtn");
+  const saveStatus = document.getElementById("saveStatus");
+  surveyBtn.disabled = true;
+  surveyBtn.textContent = "Saving task data...";
+  surveyBtn.onclick = ()=>{ window.location.href = url; };
   document.getElementById("withdrawBtn").onclick = requestWithdrawal;
 
   show("s-end");
   data.finished_at = nowIso();
   data.timestamps.finished_at = data.finished_at;
   logEvent("finished", { total_time_ms: elapsedMs() });
-  saveData();
+
+  saveData().then((saved)=>{
+    surveyBtn.disabled = false;
+    surveyBtn.textContent = "Continue to the short survey";
+    if (saveStatus) {
+      saveStatus.textContent = saved
+        ? "Task data saved. You can continue to the survey."
+        : "Task data was not confirmed saved. Please tell the researcher before continuing.";
+    }
+  });
 }
 
 function postSupabase(table, row, keepalive){
@@ -1128,9 +1170,14 @@ async function saveData(){
     try{
       const res = await postSupabase(CONFIG.supabaseTable, { pid:data.pid, condition:data.condition, placement:data.placement, payload:data }, false);
       console.log("Supabase save status:", res.status);
-    }catch(e){ console.error("Supabase save failed:", e); }
+      return res && res.ok;
+    }catch(e){
+      console.error("Supabase save failed:", e);
+      return false;
+    }
   } else {
     console.log("(Demo mode: Supabase not configured, data logged above only.)");
+    return true;
   }
 }
 
