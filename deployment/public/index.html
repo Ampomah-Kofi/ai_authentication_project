@@ -3,11 +3,11 @@
 Deployment README
 
 University-hosted study API setup:
-1. Apply database/mariadb_schema.sql to the University-managed MariaDB service.
+1. Apply deployment/database/mariadb_schema.sql to the University-managed MariaDB service.
 2. Deploy the server-validated PHP routes configured at CONFIG.eventsPath and
    CONFIG.withdrawalsPath. Do not expose public read, update, or delete routes.
-3. Configure the PHP server environment from .env.example and replace the
-   Qualtrics placeholder in study-config.js before deployment.
+3. Configure the PHP server environment from deployment/.env.example and
+   replace the Qualtrics placeholder in public/study-config.js before deployment.
 4. Keep database credentials on the server. Never place a secret in this file.
 5. Obtain university hosting approval and final IRB approval before collecting
    participant data.

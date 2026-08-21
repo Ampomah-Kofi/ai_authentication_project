@@ -6,7 +6,7 @@ This application supports a short usable-security research task. It presents sim
 
 ## Components
 
-1. **Participant browser** - serves `auth_task.html`, CSS, JavaScript, and non-secret `study-config.js` from the approved HTTPS origin.
+1. **Participant browser** - serves `deployment/public/index.html` and non-secret `deployment/public/study-config.js` from the approved HTTPS origin.
 2. **PHP study API** - accepts validated JSON insert requests. It exposes no public read, update, delete, reporting, or administrative interface.
 3. **MariaDB** - stores task-event and withdrawal-request records. The PHP account has least-privilege database grants.
 4. **University Qualtrics** - stores follow-up survey responses and receives `pid`, `condition`, and `placement` as URL parameters.

@@ -7,7 +7,7 @@ declare(strict_types=1);
  * not delete data automatically; authorized researchers must verify and process
  * it under the final IRB-approved procedure.
  */
-require_once __DIR__ . '/bootstrap.php';
+require_once dirname(__DIR__, 3) . '/src/bootstrap.php';
 
 $input = read_json_body();
 $pid = require_pid($input);

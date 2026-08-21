@@ -14,6 +14,7 @@ Material application, data, security, and operational changes are documented her
 
 ### Changed
 
+- Repository organized into `deployment`, `review`, `research`, and `archive` areas; the production web root is now `deployment/public`
 - Participant codes strengthened to 80 bits of cryptographic randomness
 - Production browser-console logging and assignment overrides disabled by default
 - Dynamic HTML insertion removed in favor of safe DOM operations

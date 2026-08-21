@@ -12,7 +12,7 @@ Test data must use generated study codes and fictional values. Never place parti
 
 | Check | Command/evidence | Current status |
 |---|---|---|
-| External configuration JavaScript syntax | `node --check study-config.js` | Passed locally |
+| External configuration JavaScript syntax | `node --check deployment/public/study-config.js` | Passed locally |
 | Inline application JavaScript parse | `node scripts/check-inline-js.mjs` | Passed locally |
 | Security invariants and secret patterns | `node scripts/static-security-check.mjs` | Passed locally |
 | Workflow YAML parse | Local YAML parser | Passed locally |
@@ -76,4 +76,4 @@ No conformance claim may be made until the applicable University review is compl
 
 ## Exit criteria
 
-Production release requires all applicable cases to pass, findings to be remediated or formally accepted, test records removed, exact deployed commit recorded, configuration independently reviewed, and the approvals listed in `docs/SDLC.md` completed.
+Production release requires all applicable cases to pass, findings to be remediated or formally accepted, test records removed, exact deployed commit recorded, configuration independently reviewed, and the approvals listed in `review/SDLC.md` completed.

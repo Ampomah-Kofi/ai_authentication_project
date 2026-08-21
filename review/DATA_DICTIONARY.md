@@ -62,7 +62,7 @@ The user-agent and display measurements are research data and may contribute to 
 
 ## Qualtrics information
 
-Qualtrics receives `pid`, `condition`, and `placement`, eligibility confirmation (adult and current student), task reflection, security/permission knowledge and experience, major/field, degree level, optional gender, prior cybersecurity coursework/training, and optional open-text responses. The complete instrument is in `full_qualtrics_survey.md`.
+Qualtrics receives `pid`, `condition`, and `placement`, eligibility confirmation (adult and current student), task reflection, security/permission knowledge and experience, major/field, degree level, optional gender, prior cybersecurity coursework/training, and optional open-text responses. The complete instrument is in `research/full_qualtrics_survey.md`.
 
 ## Explicitly excluded from the task
 

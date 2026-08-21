@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 
-const html = readFileSync(new URL("../auth_task.html", import.meta.url), "utf8");
+const html = readFileSync(new URL("../deployment/public/index.html", import.meta.url), "utf8");
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
   .map((match) => match[1])
   .filter((script) => script.trim() !== "");
 
 if (scripts.length === 0) {
-  throw new Error("No inline JavaScript found in auth_task.html");
+  throw new Error("No inline JavaScript found in deployment/public/index.html");
 }
 
 for (const script of scripts) {

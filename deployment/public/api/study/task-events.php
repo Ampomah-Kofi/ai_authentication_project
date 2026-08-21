@@ -7,7 +7,7 @@ declare(strict_types=1);
  * All request, origin, size, and field validation is centralized in bootstrap.
  * This endpoint intentionally implements no read, update, or delete operation.
  */
-require_once __DIR__ . '/bootstrap.php';
+require_once dirname(__DIR__, 3) . '/src/bootstrap.php';
 
 $input = read_json_body();
 $pid = require_pid($input);

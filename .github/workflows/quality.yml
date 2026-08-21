@@ -20,10 +20,10 @@ jobs:
         run: php --version
 
       - name: Lint PHP
-        run: find api -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: find deployment -type f -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Check public configuration JavaScript
-        run: node --check study-config.js
+        run: node --check deployment/public/study-config.js
 
       - name: Check inline application JavaScript
         run: node scripts/check-inline-js.mjs

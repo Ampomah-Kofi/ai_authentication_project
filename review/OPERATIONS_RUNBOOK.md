@@ -2,7 +2,7 @@
 
 ## Preconditions
 
-- Production-ready criteria in `docs/SDLC.md` are satisfied.
+- Production-ready criteria in `review/SDLC.md` are satisfied.
 - Exact release commit and approvers are recorded.
 - Production configuration is stored outside the web root and source repository.
 - Database, hosting, log, backup, and research access lists are approved.
@@ -12,8 +12,8 @@
 
 1. Back up the current approved application/configuration and verify rollback access.
 2. Apply reviewed schema changes using a database administrator account; do not grant the application broad privileges.
-3. Configure the server variables from `.env.example` in protected hosting settings.
-4. Set the approved HTTPS API/Qualtrics values in `study-config.js`; keep debug logging and assignment overrides disabled.
+3. Configure the server variables from `deployment/.env.example` in protected hosting settings.
+4. Set the approved HTTPS API/Qualtrics values in `deployment/public/study-config.js`; keep debug logging and assignment overrides disabled.
 5. Deploy only the reviewed commit. Do not deploy `.git`, local environment files, logs, exports, database dumps, or draft secrets.
 6. Configure TLS, certificate renewal, HSTS, CSP/security headers, directory restrictions, supported PHP settings, logging, monitoring, and backups with University IT.
 7. Run production smoke tests using fictional records, confirm Qualtrics joining, inspect the browser console/network responses, then remove test records.

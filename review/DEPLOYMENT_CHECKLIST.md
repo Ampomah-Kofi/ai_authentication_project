@@ -1,6 +1,6 @@
 # Deployment Checklist
 
-This checklist is a release gate used with `docs/SDLC.md`, `docs/TEST_PLAN.md`, and `docs/OPERATIONS_RUNBOOK.md`. An unchecked required item means the application is not production-ready.
+This checklist is a release gate used with `review/SDLC.md`, `review/TEST_PLAN.md`, and `review/OPERATIONS_RUNBOOK.md`. An unchecked required item means the application is not production-ready.
 
 ## Approval and ownership
 
@@ -14,18 +14,18 @@ This checklist is a release gate used with `docs/SDLC.md`, `docs/TEST_PLAN.md`, 
 ## Configuration
 
 - [ ] Obtain an approved HTTPS hostname, DNS record, and TLS certificate.
-- [ ] Set every server variable listed in `.env.example` using protected hosting configuration.
+- [ ] Set every server variable listed in `deployment/.env.example` using protected hosting configuration.
 - [ ] Use a generated database password and an independent rate-limit secret of at least 32 random characters.
 - [ ] Set `STUDY_ALLOWED_ORIGIN` to the exact production origin without a trailing slash.
-- [ ] Set `apiBaseUrl` in `study-config.js` to the same approved HTTPS origin.
-- [ ] Replace the Qualtrics placeholder in `study-config.js`.
+- [ ] Set `apiBaseUrl` in `deployment/public/study-config.js` to the same approved HTTPS origin.
+- [ ] Replace the Qualtrics placeholder in `deployment/public/study-config.js`.
 - [ ] Confirm `enableAssignmentOverrides` remains `false` in production.
 - [ ] Confirm `enableDebugLogging` remains `false` in production and participant records do not appear in the browser console.
 
 ## Application and database
 
 - [ ] Confirm PHP 8.1+ includes PDO MySQL and MariaDB is 10.6+.
-- [ ] Apply `database/mariadb_schema.sql` to the University-managed database.
+- [ ] Apply `deployment/database/mariadb_schema.sql` to the University-managed database.
 - [ ] Confirm `task_events`, `task_withdrawals`, and `study_rate_limits` exist.
 - [ ] Grant the PHP account only INSERT on the two research tables and the documented limited permissions on `study_rate_limits`.
 - [ ] Confirm `POST /api/study/task-events.php` and `POST /api/study/task-withdrawals.php` return `201` for valid test records.

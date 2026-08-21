@@ -23,16 +23,16 @@ This is a human-subject research application. Code correctness alone is not suff
 Run locally where available:
 
 ```text
-node --check study-config.js
+node --check deployment/public/study-config.js
 node scripts/check-inline-js.mjs
 node scripts/static-security-check.mjs
 git diff --check
 ```
 
-GitHub CI must also pass PHP lint, API guard tests, and private-file checks. Complete the applicable manual and staging cases in `docs/TEST_PLAN.md`.
+GitHub CI must also pass PHP lint, API guard tests, and private-file checks. Complete the applicable manual and staging cases in `review/TEST_PLAN.md`.
 
 ## Review and release
 
-At least one reviewer other than the author should review security-relevant or production changes when University staffing permits. Record the deployed commit and approvals. Do not describe a release as production-ready until the exit criteria in `docs/SDLC.md` and `deployment_checklist.md` are met.
+At least one reviewer other than the author should review security-relevant or production changes when University staffing permits. Record the deployed commit and approvals. Do not describe a release as production-ready until the exit criteria in `review/SDLC.md` and `review/DEPLOYMENT_CHECKLIST.md` are met.
 
 Report vulnerabilities privately to the designated technical owner and University information-security contact, not through a public issue.

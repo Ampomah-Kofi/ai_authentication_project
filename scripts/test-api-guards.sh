@@ -5,7 +5,7 @@ port="${STUDY_TEST_PORT:-8765}"
 origin="https://study.example.edu"
 base="http://127.0.0.1:${port}/api/study/task-events.php"
 
-STUDY_ALLOWED_ORIGIN="$origin" php -S "127.0.0.1:${port}" -t . >/tmp/study-php-server.log 2>&1 &
+STUDY_ALLOWED_ORIGIN="$origin" php -S "127.0.0.1:${port}" -t deployment/public >/tmp/study-php-server.log 2>&1 &
 server_pid=$!
 trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 

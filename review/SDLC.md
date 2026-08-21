@@ -22,25 +22,25 @@ No developer may approve unresolved research, privacy, or infrastructure risk on
 
 | Phase | Required evidence | Repository evidence | Current status |
 |---|---|---|---|
-| Plan | Scope, owners, users, data, regulatory constraints | `README.md`, `irb_protocol_draft.md`, `docs/UNIVERSITY_HOSTING_OVERVIEW.md` | Partial: owners, sample cap, and approvals pending |
-| Requirements | Functional, security, privacy, accessibility, operational requirements | `docs/REQUIREMENTS_TRACEABILITY.md` | Review-ready; external decisions pending |
-| Design | Architecture, trust boundaries, database design, threat analysis | `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md`, `database/mariadb_schema.sql` | Review-ready |
-| Build | Reviewed source, safe defaults, no committed secrets, supported versions | `auth_task.html`, `study-config.js`, `api/`, `.env.example`, `SECURITY.md` | Implemented |
-| Verify | Automated checks, integration tests, accessibility testing, vulnerability testing, approval evidence | `.github/workflows/quality.yml`, `scripts/`, `docs/TEST_PLAN.md` | Partial: local static checks pass; live tests pending |
-| Release | Approved change, immutable commit, configuration review, rollback plan | `CONTRIBUTING.md`, `CHANGELOG.md`, `deployment_checklist.md`, `docs/OPERATIONS_RUNBOOK.md` | Not approved for production |
-| Operate | Monitoring, incident response, backup/restore, access review, patching | `SECURITY.md`, `docs/OPERATIONS_RUNBOOK.md` | Documented; infrastructure validation pending |
-| Retire | Recruitment closure, export, retention, deletion, account/secret removal | `docs/OPERATIONS_RUNBOOK.md`, IRB retention fields | Pending IRB retention decision |
+| Plan | Scope, owners, users, data, regulatory constraints | `README.md`, `research/irb_protocol_draft.md`, `review/UNIVERSITY_HOSTING_OVERVIEW.md` | Partial: owners, sample cap, and approvals pending |
+| Requirements | Functional, security, privacy, accessibility, operational requirements | `review/REQUIREMENTS_TRACEABILITY.md` | Review-ready; external decisions pending |
+| Design | Architecture, trust boundaries, database design, threat analysis | `review/ARCHITECTURE.md`, `review/THREAT_MODEL.md`, `deployment/database/mariadb_schema.sql` | Review-ready |
+| Build | Reviewed source, safe defaults, no committed secrets, supported versions | `deployment/`, `SECURITY.md` | Implemented |
+| Verify | Automated checks, integration tests, accessibility testing, vulnerability testing, approval evidence | `.github/workflows/quality.yml`, `scripts/`, `review/TEST_PLAN.md` | Partial: local static checks pass; live tests pending |
+| Release | Approved change, immutable commit, configuration review, rollback plan | `CONTRIBUTING.md`, `CHANGELOG.md`, `review/DEPLOYMENT_CHECKLIST.md`, `review/OPERATIONS_RUNBOOK.md` | Not approved for production |
+| Operate | Monitoring, incident response, backup/restore, access review, patching | `SECURITY.md`, `review/OPERATIONS_RUNBOOK.md` | Documented; infrastructure validation pending |
+| Retire | Recruitment closure, export, retention, deletion, account/secret removal | `review/OPERATIONS_RUNBOOK.md`, IRB retention fields | Pending IRB retention decision |
 
 ## Change workflow
 
 1. Open a scoped branch and describe the requirement or defect.
 2. Assess effects on participant wording, data collection, randomization, IRB documents, security, accessibility, and operations.
 3. Update code and every affected document in the same change.
-4. Run automated checks and record any manual verification required by `docs/TEST_PLAN.md`.
+4. Run automated checks and record any manual verification required by `review/TEST_PLAN.md`.
 5. Obtain technical review. Obtain PI/IRB review when participant experience, collected information, consent, debrief, withdrawal, recruitment, or analysis logic changes.
 6. Obtain University control-owner approval when hosting, network, authentication, logging, backup, retention, or data-access controls change.
 7. Merge only after required checks and approvals pass. Tag or otherwise record the exact deployed commit.
-8. Deploy using `docs/OPERATIONS_RUNBOOK.md`, complete smoke tests, and retain release evidence.
+8. Deploy using `review/OPERATIONS_RUNBOOK.md`, complete smoke tests, and retain release evidence.
 9. Roll back or suspend recruitment if acceptance criteria fail.
 
 ## Definition of review-ready
