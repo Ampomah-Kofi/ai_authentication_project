@@ -2,32 +2,37 @@
 
 Study title: AI Authentication and Permission Review Study
 
-Use after the HTML behavioral task. Qualtrics should capture the participant code from the URL parameter:
+Use after the HTML behavioral task. At the top of Survey Flow, before Block 1,
+create Embedded Data fields named exactly:
 
-`pid = ${e://Field/pid}`
+- `pid`
+- `condition`
+- `placement`
+
+Each field captures the URL parameter with the same name. Together, these fields
+join the survey response to the behavioral record and its assigned experimental
+cell.
 
 ## Research Questions
 
-**RQ1.** What mental models do university students hold of single sign-on (SSO), multi-factor authentication (MFA), and AI agent authorization, and across these three layers, where do misconceptions cluster?
+**RQ1: Mental Models.** How do university students understand SSO, MFA, and AI assistant authorization?
 
-**RQ2.** How carefully do students review a consent screen before granting access, and do they notice when the access requested is broader than the task needs?
+**RQ2: Permission Attention.** Do students notice and recall over-broad AI assistant permissions, and does permission position affect this?
 
-**RQ3.** Does attention to a consent screen drop when it comes at the end of a chain of login and approval steps, compared with seeing it fresh?
+**RQ3: Cascade Effect.** Does a preceding sign-in, SSO, and MFA chain reduce attention to the AI consent screen?
 
-**RQ4.** Do students know how to manage delegated access: can they revoke access they have granted, find a record of what an AI agent has done, and tell their own actions apart from actions an agent took for them?
+**RQ4: Access Management.** Do students understand how to revoke AI assistant access and audit assistant actions?
 
 ---
 
 ## Block 1. Entry and Eligibility
 
 ### 1. Participant Code
-
 Your participant code is captured automatically from the previous task. If the field below is empty, please enter the code shown on the task completion screen.
 
 Question type: text entry. Display logic: hidden if `${e://Field/pid}` is populated; shown only if blank.
 
 ### 2. Age Confirmation
-
 I am 18 years of age or older.
 
 - Yes
@@ -36,21 +41,19 @@ I am 18 years of age or older.
 Routing: if No, end the survey.
 
 ### 3. Student Status
-
-I am currently enrolled at the University of Alabama.
+I am currently enrolled as a student at a college or university.
 
 - Yes
 - No
 
-Routing: if No, set `ineligible = true` and continue.
+Routing: if No, set `ineligible = true` and end the survey.
 
 ---
 
 ## Block 2. Immediate Post-Task Reflection
-
 ### 4. Realism
 
-How realistic did the simulated sign-in and permission task feel?
+How realistic did the simulated account-access and permission task feel?
 
 - (1) Not realistic at all
 - (2) Slightly realistic
@@ -390,6 +393,15 @@ This study is conducted by the UA SPECTRAL Lab at the University of Alabama.
 
 ## Qualtrics Build Notes
 
+### Embedded Data - Survey Flow
+
+Place an Embedded Data element at the very top of Survey Flow, before Block 1.
+Create these three fields and capture the URL parameter with the same name:
+
+- `pid`: random participant code used to join the survey and task records
+- `condition`: `A_fresh` or `B_chained`
+- `placement`: `top` or `bottom`
+
 ### Text Entry - Single Line
 
 - Q1 (participant code)
@@ -441,3 +453,18 @@ Combine Q13, Q14, Q15, and Q16 onto one Qualtrics screen as a single Matrix Tabl
 - Q14 (read what apps ask for)
 - Q15 (notice when something is off)
 - Q16 (attention check 1 - embedded in the matrix)
+
+### Routing and Scoring
+
+- Q2: if No, end the survey.
+- Q3: if No, set `ineligible = true` and end the survey.
+- Q16: pass if Often.
+- Q31: pass if False.
+- Code Q19, Q28, and Q32 independently by two researchers and report Cohen's kappa.
+- Treat planted-permission recall as a primary RQ2 outcome and assistant-name
+  recognition as a secondary attention/memory measure. Do not exclude
+  participants for failing either measure because the experimental conditions
+  may affect both.
+- Predefine independent exclusion rules using eligibility, task completion,
+  matched task and survey records, duplicate handling, and the Qualtrics
+  instructed-response checks (Q16 and Q31).

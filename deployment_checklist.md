@@ -1,32 +1,59 @@
 # Deployment Checklist
 
+## Approval and ownership
+
+- [ ] Obtain final IRB approval, including incomplete-disclosure and withdrawal wording.
+- [ ] Confirm the faculty PI, technical owner, approved research team, and application-maintenance responsibility.
+- [ ] Confirm data classification, hosting region, access controls, backups, retention, secure deletion, incident response, and server-log handling.
+- [ ] Record the final sample-size cap and expected recruitment window.
+- [ ] Document how any Prolific identifier is minimized, separated, accessed, and destroyed.
+
 ## Configuration
 
-- [ ] Set `CONFIG.supabaseUrl` to the production Supabase project URL.
-- [ ] Set `CONFIG.supabaseAnonKey` to the production Supabase anon key.
-- [ ] Set `CONFIG.surveyBaseUrl` to the published Qualtrics survey link.
+- [ ] Obtain an approved HTTPS hostname, DNS record, and TLS certificate.
+- [ ] Set every server variable listed in `.env.example` using protected hosting configuration.
+- [ ] Use a generated database password and an independent rate-limit secret of at least 32 random characters.
+- [ ] Set `STUDY_ALLOWED_ORIGIN` to the exact production origin without a trailing slash.
+- [ ] Set `apiBaseUrl` in `study-config.js` to the same approved HTTPS origin.
+- [ ] Replace the Qualtrics placeholder in `study-config.js`.
+- [ ] Confirm `enableAssignmentOverrides` remains `false` in production.
 
-## Supabase
+## Application and database
 
-- [ ] Run `supabase_setup.sql` in the Supabase SQL editor.
-- [ ] Confirm `task_events` and `task_withdrawals` exist.
-- [ ] Confirm RLS is enabled on both tables.
-- [ ] Confirm anon INSERT policies appear in the verification query.
-- [ ] Verify anon INSERT works with a `curl` test.
-- [ ] Verify anon SELECT is blocked: `curl "$SUPABASE_URL/rest/v1/task_events?select=*" -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY"` should return a permission-denied response.
-- [ ] Verify anon UPDATE and DELETE are blocked.
+- [ ] Confirm PHP 8.1+ includes PDO MySQL and MariaDB is 10.6+.
+- [ ] Apply `database/mariadb_schema.sql` to the University-managed database.
+- [ ] Confirm `task_events`, `task_withdrawals`, and `study_rate_limits` exist.
+- [ ] Grant the PHP account only INSERT on the two research tables and the documented limited permissions on `study_rate_limits`.
+- [ ] Confirm `POST /api/study/task-events.php` and `POST /api/study/task-withdrawals.php` return `201` for valid test records.
+- [ ] Confirm GET, PUT, PATCH, and DELETE return `405` and an unapproved or missing Origin returns `403`.
+- [ ] Confirm malformed JSON, oversized bodies, invalid participant codes, invalid assignments, and mismatched payload identifiers are rejected.
+- [ ] Confirm database errors are logged server-side without returning credentials, SQL, or stack traces to the browser.
+- [ ] Confirm the server does not expose `.env`, database dumps, logs, directory listings, or repository metadata.
 
-## Qualtrics
+## Infrastructure security
 
-- [ ] Add embedded data field `pid` at the top of Survey Flow.
-- [ ] Confirm `pid` captures the URL parameter `?pid=P-XXXXXXXXXX`.
-- [ ] Run one test participant through task and survey.
-- [ ] Confirm the test `pid` joins between Supabase and Qualtrics.
+- [ ] Require HTTPS and enable HSTS after the hostname is validated.
+- [ ] Configure supported TLS versions, security headers, request logging, monitoring, and alerting with University IT.
+- [ ] Review whether server access logs contain IP addresses and apply the approved retention/access policy.
+- [ ] Protect researcher, database, hosting-panel, backup, and log access with University-approved SSO/MFA and least privilege.
+- [ ] Establish patching, dependency/version monitoring, vulnerability-remediation, and incident-response ownership.
+- [ ] Complete University vulnerability testing and correct findings before production.
 
-## Spot Checks
+## Qualtrics and Prolific
 
-- [ ] Complete one desktop walkthrough end-to-end.
-- [ ] Complete one mobile walkthrough end-to-end.
-- [ ] Complete one keyboard-only walkthrough end-to-end.
-- [ ] Confirm demo-mode banner appears when Supabase is unconfigured.
-- [ ] Confirm demo-mode banner is hidden when Supabase is configured.
+- [ ] Add embedded fields `pid`, `condition`, and `placement` at the top of the Qualtrics Survey Flow.
+- [ ] Confirm the fields capture the matching URL parameters.
+- [ ] Confirm the approved Qualtrics tenant, data location, access list, export procedure, and retention settings.
+- [ ] Configure only the minimum Prolific fields needed for recruitment, compensation, duplicate handling, and matching.
+- [ ] Run one test participant through the task, Qualtrics, and Prolific completion route.
+- [ ] Confirm the participant code and assignment join correctly without placing a Prolific identifier in the task payload.
+
+## Accessibility and study validation
+
+- [ ] Complete desktop, mobile, keyboard-only, screen-reader, zoom, contrast, and reduced-motion checks.
+- [ ] Correct issues identified by the University accessibility review.
+- [ ] Confirm the data-saving warning appears when the API is disabled and disappears on the configured HTTPS host.
+- [ ] Confirm the frontend waits for a successful task save before enabling the survey handoff.
+- [ ] Confirm the withdrawal endpoint records a test request and the approved research workflow can locate and delete the associated records.
+- [ ] Confirm no simulation disclosure appears before or during the task and the full debrief appears before the survey handoff, as approved by the IRB.
+- [ ] Remove all test records before recruitment.

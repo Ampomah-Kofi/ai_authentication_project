@@ -27,8 +27,9 @@ row varies. The scrollbox height is constant, so scroll demand is held equal.
 4. **Recall check.** All six real permissions plus two foils (post to social
    media; permanently delete emails), shuffled. Also includes an assistant-name
    attention check and a perceived-breadth question.
-5. **Debrief and handoff.** Debrief text discloses the planted permission, then
-   an anonymous participant code carries into Qualtrics via URL parameters
+5. **Debrief and handoff.** Debrief text discloses the simulated screens, the
+   reason for delayed disclosure, and the planted permission, then
+   a random participant code carries into Qualtrics via URL parameters
    (pid, condition, placement), with a data-withdrawal option.
 
 ## Data captured
@@ -49,3 +50,9 @@ row varies. The scrollbox height is constant, so scroll demand is held equal.
 
 No real credentials or account information are collected. The participant code
 joins task records to survey responses.
+
+The pre-task information and task screens do not label the experience as a
+simulation. Participants are instructed not to enter personal credentials and
+receive the full simulation disclosure immediately after the recall questions,
+before continuing to Qualtrics. This delayed disclosure is contingent on the
+final IRB-approved protocol and consent/debrief language.

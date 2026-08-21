@@ -1,0 +1,940 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+
+\definecolor{linkblue}{HTML}{075E88}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=linkblue,
+  urlcolor=linkblue,
+  citecolor=linkblue
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.65em}
+\renewcommand{\arraystretch}{1.18}
+
+\title{\textbf{Authentication Autopilot Cascade Study}\\
+\large Advisor Project Update: Motivation, Research Questions, Methodology,
+and Implementation Status}
+\author{Kofi Ampomah\\UA SPECTRAL Lab, The University of Alabama}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This project investigates a familiar but underexamined security problem: users
+are often asked to make consequential authorization decisions only after they
+have completed several routine authentication steps. The study tests whether
+the momentum created by signing in, continuing through an identity provider,
+and approving an MFA request reduces careful review of a subsequent
+AI-assistant permission screen. It also examines whether placing a single
+over-broad permission at the beginning or end of an otherwise identical list
+changes behavioral exposure to, and later recall of, that permission. The
+prototype implements a $2 \times 2$ between-subjects experiment, records
+behavioral measures through a university-hosted API, and connects each task record to a follow-up
+Qualtrics survey. The planned sample consists of adult university students
+recruited through Prolific.
+\end{abstract}
+
+\section{Introduction}
+
+Digital identity workflows rarely end with a password. A student connecting a
+new tool may choose a sign-in method, move through an identity-provider
+handoff, approve an MFA prompt, and then encounter a request that allows an AI
+assistant to read data or act on the student's behalf. From the system's
+perspective, these screens perform distinct functions. From the user's
+perspective, however, they can feel like one continuous sequence whose apparent
+goal is simply to ``get through'' the login.
+
+That distinction is central to the study. Authentication establishes or
+verifies identity; authorization determines what another application or agent
+may do after identity has been established. Completing a legitimate sign-in
+and MFA check does not make a later permission request proportionate, safe, or
+necessary. Yet people make these decisions with limited time and attention.
+After several successful clicks, the next approval may feel less like a new
+security judgment and more like the final step of a process already underway.
+The term \emph{authentication autopilot} is used here to describe this possible
+shift from deliberate review toward habitual continuation.
+
+Prior work has documented usability burdens associated with MFA
+\cite{reese2019usability}, limited attention and comprehension during
+permission decisions \cite{felt2012android}, and susceptibility to deceptive online requests
+within academic communities \cite{diaz2020,sheng2010}. University students are
+a substantively relevant population rather than merely a convenient sample.
+They routinely encounter institutional SSO and MFA, adopt new educational and
+productivity services, and increasingly interact with AI-enabled tools that
+request access to files, calendars, and other accounts. The study therefore
+places a consequential authorization decision within a workflow that is
+recognizable to the intended participants, while ensuring that no real account
+or credential is used.
+
+\section{Study Motivation}
+
+\subsection{Security decisions occur in sequences}
+
+Security interfaces are often designed and evaluated as isolated moments, but
+people experience them as sequences. A sign-in button leads to a provider
+handoff; the handoff leads to MFA; MFA leads to a permission request. Each
+successful step reinforces the expectation that continuing is normal and that
+the next approval belongs to the same trusted process. This interactional
+momentum may be especially consequential at the authorization stage, where the
+user is no longer proving identity but granting power to another system.
+
+The study is motivated by the possibility that a technically valid
+authentication chain can create misplaced confidence in a later request.
+Nothing needs to be visibly broken or overtly deceptive. A user may simply
+transfer trust from the earlier identity checks to a permission screen that
+deserves an independent judgment. Measuring this subtle carryover requires
+observing behavior across the whole sequence rather than presenting a consent
+screen in isolation.
+
+\subsection{AI delegation raises the consequences of inattentive approval}
+
+AI assistants increasingly connect to calendars, files, messages, and other
+services. These connections can be useful, but they may also grant persistent
+or action-oriented authority. The difference between allowing an application
+to view a profile and allowing an assistant to make purchases is not merely a
+difference in data sensitivity; it is a difference in what the system can do
+after access is granted.
+
+For this reason, the planted permission in the experiment concerns access to
+saved payment methods and the ability to make purchases on the user's behalf.
+It is intentionally inconsistent with the stated scheduling-and-study-file
+task and creates a clear risk of financial harm. The manipulation therefore
+tests attention to a meaningful boundary violation rather than an arbitrary
+change in wording.
+
+\subsection{Why university students are the target population}
+
+University students operate in a particularly dense digital environment. They
+regularly move among institutional portals, cloud productivity tools, learning
+platforms, third-party applications, SSO interfaces, and MFA prompts. They also
+have practical reasons to try new educational tools, free services, discounts,
+and productivity applications. The rationale for studying students is
+therefore their repeated exposure to these workflows, not an assumption that
+students are inherently careless.
+
+Recent research further supports treating students as a distinct security
+population whose online practices are shaped by high technology use, uneven
+formal security training, and context-specific motivations
+\cite{gwenhure2025}. At the same time, AI use has become part of ordinary
+academic work. One recent study at a selective U.S. college found that more
+than 80\% of surveyed students reported academic use of generative AI within
+two years of ChatGPT's release \cite{contractor2025}. That estimate should not
+be generalized to every institution, but it demonstrates that AI-related
+authorization is no longer a hypothetical concern for student populations.
+
+\subsection{Scientific and practical value}
+
+Scientifically, the project connects research on security fatigue, permission
+attention, authentication usability, and emerging AI delegation. Its factorial
+design makes it possible to separate the effect of the preceding chain from the
+effect of permission position and to test whether the two factors compound one
+another.
+
+Practically, the findings may inform how AI-assistant consent interfaces are
+ordered, timed, and separated from authentication flows. If later placement or
+authentication momentum reduces meaningful review, designers may need clearer
+transitions, stronger scope explanations, or additional confirmation for
+high-risk delegated actions. The objective is not to remove useful automation,
+but to support authorization decisions that remain understandable even when
+users arrive at them after several routine approval steps.
+
+\section{Related Work}
+\label{sec:related}
+
+The project brings together five bodies of research that have largely
+developed in parallel: security fatigue, SSO mental models, MFA usability,
+permission attention, and AI-assistant delegation. Taken separately, these
+literatures explain important parts of the problem. Taken together, they
+suggest that the location of an authorization request within a longer
+interaction may be as important as the wording of the request itself.
+
+\subsection{Security Fatigue and Sequential Decisions}
+\label{sec:rw-fatigue}
+
+Security fatigue describes the resignation, avoidance, and reduced engagement
+that can arise when people are repeatedly asked to make security decisions
+\cite{stanton2016fatigue}. This account is consistent with broader theories of
+effortful judgment \cite{kahneman2011thinking} and with comparative work
+showing that authentication mechanisms impose distinct cognitive and usability
+costs \cite{bonneau2012quest}. Experimental evidence also shows that repeated
+exposure can produce habituation to security warnings. Eye-tracking,
+neuroimaging, and longitudinal studies have found declining attention across
+repeated warning encounters \cite{anderson2016memory,vance2018tuning}, while
+visual attention attractors can reduce, but not eliminate, this decline
+\cite{bravolillo2014harder}.
+
+Most of this literature studies repeated versions of the same warning. The
+present study examines a different form of repetition: a heterogeneous
+sequence in which sign-in, identity-provider handoff, MFA, and AI
+authorization are technically distinct but may be experienced as one
+continuous approval process.
+
+\subsection{Single Sign-On: Mental Models and Consent}
+\label{sec:rw-sso}
+
+SSO is often the first point at which users encounter delegated identity.
+Research has documented substantial conceptual confusion about what
+information is shared during web SSO and whether the relying application
+receives the user's identity-provider password
+\cite{sun2013investigating}. Related work has examined why users accept or
+reject SSO \cite{sun2011makes}, while more recent research reports widespread
+use alongside incomplete understanding and weak account-security practices
+\cite{petrie2024passwords}.
+
+These mental-model problems are consequential because OAuth-based sign-in may
+also involve requests for profile information or additional scopes. Large-scale
+analyses have identified scope over-request in deployed SSO systems
+\cite{dimova2023ssomething} and personal-information leakage during
+authenticated browsing \cite{pham2025consented}. The consent interface is
+therefore the point at which an abstract delegation protocol becomes a
+decision that the user must interpret.
+
+\subsection{Multi-Factor Authentication: Usability and Adoption}
+\label{sec:rw-mfa}
+
+MFA provides meaningful protection against account compromise, but its
+security benefit does not remove its interaction cost. Comparative work has
+evaluated the usability of common second-factor methods
+\cite{reese2019usability}, and university studies have documented both
+adoption and practical friction \cite{colnago2018horrible}. Student-focused
+work further suggests that MFA can create frustration and interfere with
+time-sensitive activity \cite{arnold2022emotional}. A systematic review of
+user perceptions similarly shows that usability, context, and perceived burden
+shape MFA acceptance \cite{das2019evaluating}.
+
+The present study does not test whether MFA itself is desirable or secure. It
+asks whether completing an MFA approval contributes to interactional momentum
+that carries into the next screen. In other words, MFA is treated as one
+component of the preceding chain and not as the source of the over-broad
+permission.
+
+\subsection{Permission Attention and Comprehension}
+\label{sec:rw-permissions}
+
+The permission literature provides the methodological foundation for treating
+a consent screen as an observable decision point. Foundational work found low
+attention and comprehension at Android install-time permission screens
+\cite{felt2012android}. Later studies of runtime dialogs documented low denial
+rates and the influence of contextual trust
+\cite{bonne2017exploring}, while subsequent research examined users'
+expectations and everyday management of privacy and security settings
+\cite{frik2022expectations}.
+
+Emerging research extends these questions to LLM-based applications. CLEAR,
+for example, uses contextual analysis to help explain privacy-policy risks in
+LLM applications \cite{chen2025clear}. A recent preprint on fine-print
+injection reports a human baseline in which 97.4\% of participants consented to
+malicious policies presented with low visual salience
+\cite{chen2025fineprint}. Because that result comes from a recent preprint and
+a different task context, it should not be treated as a direct estimate for
+the present experiment. It does, however, reinforce the need to examine where
+high-risk terms appear and whether users can recall them after approving.
+
+\subsection{AI-Assistant Delegation and Human Oversight}
+\label{sec:rw-agents}
+
+AI assistants introduce a qualitatively different authorization problem
+because granted access may support persistent, autonomous, or action-oriented
+behavior. Technical work on the Model Context Protocol and related tool
+ecosystems has identified security, governance, tool-integrity, and
+maintainability risks
+\cite{hasan2025mcpfirstglance,errico2025securingmcp,gaire2025sokmcp,bhatt2025etdi}.
+These mechanisms can define scopes and tokens, but they cannot by themselves
+ensure that a person understands the practical consequences of approval.
+
+The human-factors evidence is newer and less settled. Studies of conversational
+agents show that perceived safety, trust, and actual risk do not necessarily
+align \cite{tolsdorf2025safety}; disclosure research shows that users must
+trade perceived benefit against privacy risk
+\cite{zhang2024fairgame}; and emerging work argues for privacy management and
+authorization models that preserve meaningful human oversight
+\cite{xu2026humanunit,humancentered2026authorization}. Industry reports on
+consent phishing further demonstrate that attackers can misuse legitimate
+OAuth authorization flows to obtain over-broad access
+\cite{obsidian2026consentphishing}. These emerging 2025--2026 sources are
+included to establish the current direction of the field, but records marked
+for verification in the accompanying bibliography must be checked before
+publication.
+
+\subsection{Synthesis and Research Gap}
+\label{sec:rw-gap}
+
+The literature provides strong reasons to expect reduced attention under
+repetition, persistent confusion about SSO, measurable friction in MFA, and
+weak comprehension of permission dialogs. What it does not yet explain well is
+how these effects combine when an AI-assistant authorization screen appears at
+the end of a realistic authentication sequence. Permission-position research
+also rarely crosses this full chain.
+
+The present study addresses that gap by manipulating both the preceding
+authentication chain and the position of one over-broad permission. Its
+intended contribution is a controlled, user-centered account of AI
+authorization that combines in-the-moment behavior with immediate recall and
+survey measures. Scroll behavior and viewport entry indicate whether
+information was available for inspection; they are not presented as eye
+tracking or proof of conscious attention.
+
+\section{Research Questions}
+
+\textbf{RQ1: Mental models.} How do university students understand SSO, MFA,
+and AI-assistant authorization, and where do misconceptions occur across these
+three layers?
+
+\textbf{RQ2: Permission attention.} Do university students encounter and
+recall an over-broad AI-assistant permission, and does its position in the
+permission list affect review behavior and recall?
+
+\textbf{RQ3: Cascade effect.} Does a preceding sign-in, provider-handoff, and
+MFA chain reduce attention to a subsequent AI-assistant consent screen?
+
+\textbf{RQ4: Access management.} What do university students know and believe
+about revoking delegated AI-assistant access and identifying actions performed
+by an assistant?
+
+These formulations distinguish objective behavior from self-report. In
+particular, the implementation can establish that a permission entered the
+browser viewport, but viewport entry alone is not proof that the participant
+looked at, comprehended, or consciously noticed it.
+
+\section{Methodology}
+
+\subsection{Participants and Recruitment}
+
+The planned population is adults who are currently enrolled at a college or
+university. Participants will be recruited through Prolific using an available
+student or education prescreener. If the required built-in prescreener is not
+available, Prolific's approved custom-screening procedure will be used.
+Qualtrics will confirm that the participant is at least 18 years old and
+currently enrolled. The exact sample size will be determined through an
+appropriate power analysis before launch.
+
+Recruitment, screening, compensation, consent language, and data-retention
+procedures will follow the final IRB-approved protocol. The University of
+Alabama is the research institution, but enrollment at the University of
+Alabama is not an eligibility requirement.
+
+\subsection{Experimental Design}
+
+The behavioral task uses a $2 \times 2$ between-subjects factorial design. Each
+participant is assigned to one of four cells and sees only that cell.
+
+\begin{table}[ht]
+\centering
+\caption{Experimental factors and levels.}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.18\textwidth}
+                            p{0.28\textwidth}
+                            X}
+\toprule
+Factor & Levels & Manipulation \\
+\midrule
+Authentication chain &
+Fresh; Chained &
+Fresh participants proceed directly from the study introduction to the
+permission screen. Chained participants first complete a simulated sign-in
+choice, provider handoff, and number-matching MFA approval. \\
+
+Permission placement &
+Top; Bottom &
+The over-broad payment permission is rendered either first or last. The six
+permissions and their wording are otherwise identical. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{The four experimental cells.}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.22\textwidth} X X}
+\toprule
+Cell & Participant experience & Primary comparison \\
+\midrule
+Fresh + Top &
+Permission screen shown without a preceding chain; payment permission first. &
+Reference condition for clear early exposure. \\
+Fresh + Bottom &
+Permission screen shown without a preceding chain; payment permission last. &
+Placement effect without the chain. \\
+Chained + Top &
+Permission screen follows sign-in, provider handoff, and MFA; payment
+permission first. &
+Chain effect with early placement. \\
+Chained + Bottom &
+Permission screen follows the complete chain; payment permission last. &
+Combined condition used to estimate the interaction. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The principal factorial test is whether the effect of bottom placement becomes
+larger after the authentication chain. Directionally, the chained-plus-bottom
+cell is expected to produce the lowest exposure and recall, while
+fresh-plus-top is expected to produce the clearest opportunity for review.
+These are hypotheses, not labels that will be shown to participants.
+
+\subsection{Behavioral Procedure}
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Study information and agreement.} The participant reads the
+        study information and agrees to begin. The page instructs the participant
+        to use only study-provided details and not to enter personal credentials.
+        To reduce demand characteristics, the simulated nature of the screens is
+        not disclosed until the post-task debrief, subject to final IRB approval.
+
+  \item \textbf{Authentication chain.} In the chained condition only, the
+        participant chooses a simulated sign-in method, completes a provider
+        handoff, and responds to a simulated phone notification using
+        two-digit number matching. The fresh condition skips these screens.
+
+  \item \textbf{AI-assistant permission decision.} TaskFlow AI Assistant asks
+        for six permissions. Five are plausible baseline or moderate-risk
+        permissions. The planted over-broad permission asks to access saved
+        payment methods and make purchases on the user's behalf. The
+        participant selects Allow or Cancel.
+
+  \item \textbf{Immediate recall.} The participant selects all permissions
+        remembered from a shuffled list containing the six real permissions
+        and two foils. The task also asks for the assistant's name and whether
+        any requested access seemed broader than necessary.
+
+  \item \textbf{Debrief and survey handoff.} The participant is told that the
+        screens were simulated, that no real access was granted, why disclosure
+        was delayed, and which permission was intentionally over-broad. After
+        the task record is saved, the
+        participant continues to Qualtrics. The task passes the anonymous
+        participant code, chain condition, and placement condition as
+        \texttt{pid}, \texttt{condition}, and \texttt{placement}.
+\end{enumerate}
+
+\subsection{Behavioral Measures}
+
+\begin{table}[ht]
+\centering
+\caption{Behavioral outcomes recorded by the web task.}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.25\textwidth} X}
+\toprule
+Measure & Operationalization \\
+\midrule
+Permission exposure &
+Whether the planted payment row was initially visible and whether at least
+75\% of the row later entered the permission-list viewport. This is a viewport
+exposure measure, not eye tracking. \\
+
+Review behavior &
+Whether the permission list was scrolled, maximum scroll percentage, time at
+which the planted row entered the viewport, and total decision latency. \\
+
+Authorization decision &
+Allow or Cancel, with decision time and combined indicators describing whether
+the participant scrolled or was exposed to the planted item before deciding. \\
+
+Permission recall &
+Per-item recall for all six real permissions, recall of the planted payment
+permission, number of correct items, and false alarms from the two foils. \\
+
+Chain behavior &
+Selected sign-in route, screen sequence, time on each screen, back-navigation,
+MFA selections, and whether the selected number matched the phone
+notification. \\
+
+Secondary responses &
+Assistant-name recognition and perceived breadth of the requested access. \\
+
+Completion quality &
+Completed versus abandoned status, finish timestamp, and task-to-survey
+matching by anonymous participant code. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Empty MFA fields are expected for fresh-condition participants because those
+participants never receive an MFA prompt. Empty recall fields are expected in
+an abandonment record when the participant leaves before submitting recall.
+
+\subsection{Follow-up Survey}
+
+The Qualtrics instrument currently contains 36 items across eight blocks:
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item entry and eligibility;
+  \item immediate task reflection;
+  \item familiarity with SSO, MFA, and AI assistants;
+  \item baseline security behavior;
+  \item knowledge and misconceptions across SSO, MFA, and AI authorization;
+  \item perceived attention and fatigue across repeated authentication steps;
+  \item revocation and auditability; and
+  \item demographics and optional closing feedback.
+\end{enumerate}
+
+RQ1 is addressed mainly by keyed and open-text survey items concerning SSO,
+MFA, permission persistence, and assistant autonomy. RQ2 combines behavioral
+exposure and recall with self-reported reading and scrolling. RQ3 is addressed
+primarily by the randomized fresh-versus-chained comparison, with survey items
+providing contextual self-report. RQ4 is addressed by revocation knowledge,
+prior revocation experience, and perceived ability to identify
+assistant-initiated actions.
+
+The current auditability item measures perceived ability rather than
+demonstrated ability. Consequently, the paper should use language such as
+``perceived auditability'' unless an objective scenario-based knowledge item is
+added. Open-text responses will be coded using a documented codebook by two
+independent coders, with inter-rater agreement reported.
+
+\subsection{Data Architecture and Privacy}
+
+The planned data path is:
+\[
+\text{Prolific} \rightarrow
+\text{university-hosted behavioral task and API} \rightarrow
+\text{university-managed database} \rightarrow
+\text{Qualtrics} \rightarrow
+\text{Prolific completion}.
+\]
+
+The university-managed database will contain two tables. \texttt{task\_events} stores completed and
+best-effort abandonment payloads. \texttt{task\_withdrawals} stores requests
+for data removal. Each row has an automatically generated UUID primary key.
+The browser submits validated POST requests to a narrow study API; it has no
+database credentials and no public route for selecting, updating, or deleting
+records. Hosting, access control, backup, retention, and deletion procedures
+will be finalized with the university service owner and documented in the IRB.
+
+The task records a randomly generated participant code, assigned condition,
+interaction events, timestamps, browser user-agent string, and general display
+dimensions. It does not request or transmit a real password, account, email
+address, or financial information. Any connection between a Prolific ID and
+the internal participant code must be described in the IRB protocol and
+minimized to what is necessary for compensation and record matching.
+
+Abandonment capture is best effort because browsers do not guarantee that a
+network request will finish when a page is closed. Completed task submissions
+wait for a database response and are therefore more reliable.
+
+\subsection{Planned Analysis}
+
+The primary factorial models will include chain, placement, and their
+interaction. Binary outcomes---including Allow versus Cancel, planted-item
+viewport exposure, and planted-item recall---can be analyzed using logistic
+regression. Continuous or bounded outcomes---including decision latency and
+scroll depth---will be examined with distributions appropriate to their scale;
+latency may require transformation or a robust model.
+
+The chain-by-placement interaction is central because it tests whether bottom
+placement is especially harmful after the authentication sequence. Main
+effects will estimate the average effects of chain and placement across the
+other factor. Analyses of survey knowledge, perceived fatigue, security
+behavior, and prior experience will be secondary or explanatory unless
+otherwise preregistered.
+
+Planted-payment recall must not be used as an exclusion criterion because it is
+a primary RQ2 outcome. Assistant-name recognition may also be influenced by the
+experimental condition and will be treated as a secondary attention or memory
+measure rather than a neutral exclusion check. Independent quality rules will
+be defined before data collection and may include:
+
+\begin{itemize}[leftmargin=1.6em]
+  \item failure to meet age or student eligibility requirements;
+  \item incomplete task or missing matching survey record;
+  \item duplicate participation under a preregistered rule;
+  \item technically invalid records; and
+  \item failure of the Qualtrics instructed-response checks, applied according
+        to the preregistered rule and Prolific policy.
+\end{itemize}
+
+\section{Current Implementation Status}
+
+\begin{table}[ht]
+\centering
+\caption{Status as of this project update.}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.29\textwidth} X}
+\toprule
+Component & Status \\
+\midrule
+Behavioral interface &
+Implemented in a single responsive HTML file with Fresh and Chained routing,
+top and bottom placement, simulated sign-in, provider handoff, number-matching
+MFA, permission decision, recall, debrief, and withdrawal control. \\
+
+Experimental assignment &
+Random assignment across all four cells is active. A restricted
+\texttt{force=1} query mode supports controlled testing of each cell. \\
+
+Behavioral instrumentation &
+Implemented for screen timing, click sequence, MFA attempts, scroll behavior,
+viewport exposure, decision, recall, false alarms, completion, and
+abandonment. \\
+
+Database &
+The browser client is refactored for a university-hosted, POST-only study API.
+Provisioning the approved application host, API, and managed database remains
+pending; the earlier Supabase prototype is not the planned participant-data
+deployment. \\
+
+Survey &
+The 36-item Qualtrics instrument is drafted and mapped to the four research
+questions. The eligibility wording now targets college and university
+students generally. \\
+
+Completed testing &
+Saved payloads have been inspected for fresh and chained conditions, top and
+bottom placement, successful MFA matching, completed responses, attention
+responses, scrolling, and intentional abandonment. \\
+
+Remaining configuration &
+Publish the final Qualtrics survey, replace the placeholder Qualtrics URL,
+configure Prolific ID pass-through and completion routing, and deploy the task
+to its final HTTPS host. \\
+
+Remaining validation &
+Document a complete Fresh + Top run, test every cell end to end through
+Qualtrics, perform desktop/mobile/keyboard checks, verify database access
+restrictions live, pilot timing, and remove all developer test rows before
+launch. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Questions for Advisor Review}
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item Are the four research questions appropriately scoped, particularly
+        RQ1's use of ``mental models'' and RQ4's current reliance on perceived
+        auditability?
+  \item Should an objective auditability scenario be added to strengthen RQ4,
+        or should RQ4 remain focused on knowledge and self-reported confidence?
+  \item Which independent data-quality and exclusion rules should be
+        preregistered?
+  \item What sample size is supported by the planned power analysis for the
+        chain-by-placement interaction?
+  \item Is the proposed Prolific recruitment of adult university students
+        consistent with the intended population and IRB application?
+  \item Is the combined task-and-survey burden acceptable after pilot timing,
+        or should some open-text survey items be shortened or removed?
+\end{enumerate}
+
+\section{Summary}
+
+The project now has a functioning behavioral prototype, a structured survey,
+and a live data pipeline. Its central methodological strength is that it
+separates two randomized causes---authentication-chain exposure and permission
+placement---while holding the permission set constant. The behavioral task
+captures what participants could see and what they did; the recall task and
+survey capture what they remembered, believed, and understood. The main work
+remaining is methodological finalization with the advisor and IRB, followed by
+Qualtrics/Prolific integration, complete end-to-end validation, power analysis,
+and a small pilot before recruitment.
+
+\appendix
+\section{Complete Follow-up Survey Instrument}
+
+The following appendix presents the current 36-item Qualtrics instrument in the
+order participants will receive it. Qualtrics will first capture
+\texttt{pid}, \texttt{condition}, and \texttt{placement} as embedded data from
+the task URL. The participant-code question is displayed only when
+\texttt{pid} is missing.
+
+\subsection*{Block 1: Entry and Eligibility}
+
+\textbf{Q1. Participant code.}
+Your participant code is captured automatically from the previous task. If the
+field below is empty, please enter the code shown on the task completion
+screen.
+
+\textit{Response format:} Single-line text entry; hidden when
+\texttt{pid} is populated.
+
+\textbf{Q2. Age confirmation.}
+I am 18 years of age or older.
+
+\textit{Response options:} Yes; No.
+
+\textit{Routing:} A No response ends the survey.
+
+\textbf{Q3. Student status.}
+I am currently enrolled as a student at a college or university.
+
+\textit{Response options:} Yes; No.
+
+\textit{Routing:} A No response sets \texttt{ineligible=true} and ends the
+survey.
+
+\subsection*{Block 2: Immediate Post-task Reflection}
+
+\textbf{Q4. Realism.}
+How realistic did the simulated account-access and permission task feel?
+
+\textit{Response options:} (1) Not realistic at all; (2) Slightly realistic;
+(3) Moderately realistic; (4) Very realistic; (5) Extremely realistic.
+
+\textbf{Q5. Self-reported attention.}
+During the task, how carefully did you read the permission screen before
+making your decision?
+
+\textit{Response options:} (1) I did not read it; (2) I skimmed it quickly;
+(3) I read some of it; (4) I read most of it; (5) I read all of it carefully.
+
+\textbf{Q6. Self-reported scrolling.}
+Did you scroll through the full permission list during the task?
+
+\textit{Response options:} Yes; No; I do not remember.
+
+\textbf{Q7. Decision and broad-access reflection.}
+Briefly explain why you chose to allow or cancel access during the task, and
+whether anything about what the assistant asked for stood out to you.
+
+\textit{Response format:} Open-text response.
+
+\textbf{Q8. Suspicion check.}
+Before the debrief, what did you think the study was mainly examining?
+
+\textit{Response format:} Open-text response.
+
+\subsection*{Block 3: Familiarity and Exposure}
+
+\textbf{Q9. SSO frequency.}
+In the past month, how often have you logged in to a site or app using an
+existing account, such as ``Continue with Google,'' ``Continue with
+Microsoft,'' or ``Continue with Apple''?
+
+\textit{Response options:} (1) Never; (2) Rarely; (3) Monthly; (4) Weekly;
+(5) Daily.
+
+\textbf{Q10. Verification frequency.}
+In the past month, how often have you had to verify your identity using a
+second method, such as a code, phone prompt, or fingerprint?
+
+\textit{Response options:} (1) Never; (2) Rarely; (3) Monthly; (4) Weekly;
+(5) Daily.
+
+\textbf{Q11. AI-assistant use.}
+Have you used an AI assistant that can act on your behalf, such as reading
+files, drafting or sending messages, scheduling events, or connecting to
+another service?
+
+\textit{Response options:} Yes, regularly; Yes, once or twice; No; Not sure.
+
+\textbf{Q12. Technology comfort.}
+How comfortable are you with technology in general?
+
+\textit{Response options:} (1) Not at all comfortable; (2) Slightly
+comfortable; (3) Moderately comfortable; (4) Very comfortable; (5) Extremely
+comfortable.
+
+\subsection*{Block 4: Security-behavior Baseline}
+
+Questions 13--16 appear as one matrix with the shared response scale:
+(1) Never, (2) Rarely, (3) Sometimes, (4) Often, and (5) Always.
+
+\textbf{Q13. Link checking.}
+When someone sends me a link, I open it only after checking where it actually
+goes.
+
+\textbf{Q14. Permission-review habit.}
+I read what a website or app is asking for before I agree to it.
+
+\textbf{Q15. Response to unusual behavior.}
+I notice when a site or app is behaving in a way that seems off, and I stop
+before continuing.
+
+\textbf{Q16. Instructed-response check 1.}
+To show you are reading carefully, please select ``Often'' for this item.
+
+\textit{Scoring:} Pass when Often is selected.
+
+\subsection*{Block 5: Mental Models Across Three Delegation Layers}
+
+\textbf{Q17. SSO default access.}
+When you sign in to an app using an existing account, such as Google,
+Microsoft, or Apple, what do you assume the app receives by default?
+
+\textit{Response options:}
+\begin{itemize}[leftmargin=1.6em]
+  \item Nothing; it only confirms I am a real person.
+  \item Confirmation of my identity plus limited profile details the app asks
+        for, such as name and email.
+  \item Full access to that account, including messages and files.
+  \item Not sure.
+\end{itemize}
+
+\textit{Keyed answer:} Confirmation of identity plus the limited profile
+details requested.
+
+\textbf{Q18. SSO and email scope.}
+``Signing in to an app with my Google or Microsoft account automatically lets
+that app read my email.''
+
+\textit{Response options:} True; False; Not sure.
+
+\textit{Keyed answer:} False.
+
+\textbf{Q19. Open-text SSO understanding.}
+In one or two sentences, what do you think happens when you sign in to an app
+using an existing account like Google, Microsoft, or Apple?
+
+\textit{Response format:} Open-text response, coded post hoc as accurate,
+partially accurate, inaccurate, or off-topic.
+
+\textbf{Q20. Purpose of MFA.}
+What is the main thing two-step verification, such as a code or phone approval
+after your password, is meant to protect against?
+
+\textit{Response options:}
+\begin{itemize}[leftmargin=1.6em]
+  \item Weak passwords.
+  \item Someone using a password that was stolen or guessed.
+  \item Computer viruses.
+  \item A slow or unreliable internet connection.
+  \item Not sure.
+\end{itemize}
+
+\textit{Keyed answer:} Someone using a password that was stolen or guessed.
+
+\textbf{Q21. SSO-replaces-MFA misconception.}
+``If I use single sign-on, I do not really need two-step verification, because
+the sign-on already covers it.''
+
+\textit{Response options:} True; False; Not sure.
+
+\textit{Keyed answer:} False.
+
+\textbf{Q22. Persistence of AI access.}
+When you allow an AI assistant to connect to one of your accounts, such as
+email or calendar, what do you assume it can do afterward?
+
+\textit{Response options:}
+\begin{itemize}[leftmargin=1.6em]
+  \item Only the single action I asked for, that one time.
+  \item Whatever the granted access allows, until I remove that access.
+  \item Only things it does while I am watching.
+  \item Not sure.
+\end{itemize}
+
+\textit{Keyed answer:} Whatever the granted access allows, until the access is
+removed.
+
+\textbf{Q23. AI-assistant autonomy.}
+``An AI assistant only does something at the exact moment I ask; it cannot act
+on its own later.''
+
+\textit{Response options:} True; False; Not sure.
+
+\textit{Keyed answer:} False.
+
+\textbf{Q24. Importance of permission clarity.}
+How important is it to you that an AI assistant clearly explains what account
+permissions it is requesting?
+
+\textit{Response options:} (1) Not important at all; (2) Slightly important;
+(3) Moderately important; (4) Very important; (5) Extremely important.
+
+\subsection*{Block 6: Attention Across Authentication Steps}
+
+\textbf{Q25. Attention across steps.}
+When you go through several login or approval steps in a row, such as sign-in,
+provider handoff, and MFA approval, how does your attention to each new screen
+usually change?
+
+\textit{Response options:}
+\begin{itemize}[leftmargin=1.6em]
+  \item I read each one just as carefully.
+  \item I pay a little less attention to later ones.
+  \item I pay a lot less attention to later ones.
+  \item I usually approve or continue to get through them.
+  \item Not sure.
+\end{itemize}
+
+\textbf{Q26. Login fatigue.}
+How mentally tiring do repeated login and approval steps feel to you?
+
+\textit{Response options:} (1) Not tiring at all; (2) Slightly tiring;
+(3) Moderately tiring; (4) Very tiring; (5) Extremely tiring.
+
+\subsection*{Block 7: Revocation and Auditability}
+
+\textbf{Q27. Knowing where to revoke access.}
+If you wanted to stop an app or AI assistant from being able to access your
+account, would you know where to do that?
+
+\textit{Response options:} Yes, confidently; I think so; No; I have never
+thought about it.
+
+\textbf{Q28. Revocation location.}
+Briefly, where would you go to remove that access?
+
+\textit{Response format:} Open-text response, coded as correct, partially
+correct, or incorrect.
+
+\textbf{Q29. Prior revocation experience.}
+Have you ever reviewed or removed an app's or service's access to one of your
+accounts?
+
+\textit{Response options:} Yes; No; I am not sure what that means.
+
+\textbf{Q30. AI-action attribution.}
+If an AI assistant sent an email for you, do you think you could find a record
+showing that the assistant sent it rather than you?
+
+\textit{Response options:} Yes; No; Not sure.
+
+\textbf{Q31. Instructed-response check 2.}
+To show you are paying attention, please select ``False'' for this item:
+``Most people sleep eight hours a night.''
+
+\textit{Response options:} True; False; Not sure.
+
+\textit{Scoring:} Pass when False is selected.
+
+\subsection*{Block 8: Demographics and Closing}
+
+\textbf{Q32. Major or field of study.}
+What is your major or field of study?
+
+\textit{Response format:} Open-text response, coded post hoc as technical,
+non-technical, or mixed.
+
+\textbf{Q33. Degree level.}
+What is your current degree level?
+
+\textit{Response options:} Undergraduate; Master's; Doctoral or PhD; Other;
+Prefer not to say.
+
+\textbf{Q34. Gender.} This question is optional.
+
+\textit{Response options:} Woman; Man; Non-binary; Prefer to self-describe;
+Prefer not to say.
+
+\textbf{Q35. Prior cybersecurity coursework.}
+Have you taken a course or formal training related to cybersecurity, privacy,
+or computer security?
+
+\textit{Response options:} Yes; No; Not sure.
+
+\textbf{Q36. Final comment.}
+Is there anything else you would like to tell us about the task, account
+permissions, or AI assistants?
+
+\textit{Response format:} Optional open-text response.
+
+\subsection*{Closing Message}
+
+Thank you for completing the survey. Your responses have been recorded. If you
+have any questions about the study, please contact Kofi Ampomah at
+\href{mailto:kampomah@crimson.ua.edu}{kampomah@crimson.ua.edu} or Kunal Sarna
+at \href{mailto:ksarna@crimson.ua.edu}{ksarna@crimson.ua.edu}. For questions
+about your rights as a research participant, contact the University of Alabama
+Office for Research Compliance at 1-877-820-3066 or
+\href{mailto:rscompliance@ua.edu}{rscompliance@ua.edu}.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
