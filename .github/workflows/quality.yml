@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Show PHP version
         run: php --version
@@ -25,6 +27,12 @@ jobs:
 
       - name: Check inline application JavaScript
         run: node scripts/check-inline-js.mjs
+
+      - name: Check security invariants
+        run: node scripts/static-security-check.mjs
+
+      - name: Test API rejection guards
+        run: bash scripts/test-api-guards.sh
 
       - name: Reject accidentally committed private files
         run: |

@@ -1,5 +1,7 @@
 # Security and Maintenance
 
+The project lifecycle is documented in `docs/SDLC.md`, with specific threats and verification cases in `docs/THREAT_MODEL.md` and `docs/TEST_PLAN.md`. The process is informed by NIST SP 800-218 SSDF 1.1; this statement is not a certification or production approval.
+
 ## Implemented application controls
 
 - Browser code contains no database credential or server secret.

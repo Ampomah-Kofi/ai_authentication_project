@@ -1,9 +1,12 @@
 # Deployment Checklist
 
+This checklist is a release gate used with `docs/SDLC.md`, `docs/TEST_PLAN.md`, and `docs/OPERATIONS_RUNBOOK.md`. An unchecked required item means the application is not production-ready.
+
 ## Approval and ownership
 
 - [ ] Obtain final IRB approval, including incomplete-disclosure and withdrawal wording.
 - [ ] Confirm the faculty PI, technical owner, approved research team, and application-maintenance responsibility.
+- [ ] Confirm source/research-material ownership, repository visibility, and the intended project license.
 - [ ] Confirm data classification, hosting region, access controls, backups, retention, secure deletion, incident response, and server-log handling.
 - [ ] Record the final sample-size cap and expected recruitment window.
 - [ ] Document how any Prolific identifier is minimized, separated, accessed, and destroyed.

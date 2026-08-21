@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/*
+ * Public insert-only endpoint for withdrawal requests. Recording a request does
+ * not delete data automatically; authorized researchers must verify and process
+ * it under the final IRB-approved procedure.
+ */
 require_once __DIR__ . '/bootstrap.php';
 
 $input = read_json_body();

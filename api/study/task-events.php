@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/*
+ * Public insert-only endpoint for completed and best-effort abandoned tasks.
+ * All request, origin, size, and field validation is centralized in bootstrap.
+ * This endpoint intentionally implements no read, update, or delete operation.
+ */
 require_once __DIR__ . '/bootstrap.php';
 
 $input = read_json_body();
@@ -11,6 +16,7 @@ $placement = require_allowed_value($input, 'placement', STUDY_PLACEMENTS);
 $payload = require_payload($input);
 verify_payload_identity($payload, $pid, $condition, $placement);
 
+// Abandonment is explicit; every other valid submission is a completed record.
 $recordType = (($payload['abandoned'] ?? false) === true) ? 'abandoned' : 'completed';
 $pdo = database();
 enforce_rate_limit($pdo);

@@ -25,10 +25,17 @@ The application does not implement real authentication. Every sign-in, SSO, MFA,
 - `api/study/bootstrap.php` - shared request validation, database connection, CORS, security headers, and rate limiting
 - `database/mariadb_schema.sql` - production-target MariaDB tables and least-privilege grant examples
 - `docs/ARCHITECTURE.md` - design, data flow, and trust boundaries
+- `docs/SDLC.md` - lifecycle, roles, evidence, and production exit criteria
+- `docs/REQUIREMENTS_TRACEABILITY.md` - University requirement-to-evidence matrix
+- `docs/THREAT_MODEL.md` - assets, threats, controls, and residual risks
+- `docs/TEST_PLAN.md` - automated, staging, accessibility, security, and operational tests
+- `docs/DATA_DICTIONARY.md` - database, task payload, and Qualtrics information inventory
+- `docs/OPERATIONS_RUNBOOK.md` - deployment, monitoring, incidents, rollback, withdrawal, and retirement
 - `SECURITY.md` - implemented controls and infrastructure responsibilities
 - `docs/THIRD_PARTY_SERVICES.md` - Qualtrics and Prolific inventory
 - `deployment_checklist.md` - approval and production verification checklist
 - `.github/workflows/quality.yml` - automated PHP and JavaScript syntax checks
+- `CONTRIBUTING.md` and `CHANGELOG.md` - change control and material change history
 - `irb_protocol_draft.md` - working protocol with unresolved governance fields
 - `supabase_setup.sql` - deprecated prototype artifact; never deploy for participant data
 
@@ -58,3 +65,7 @@ Both endpoints require an exact allowed browser origin, validate the participant
 Opening `auth_task.html` directly keeps the study API disabled. Browser-console event logging is also disabled by default; it may be enabled temporarily for local fake-data testing by setting `enableDebugLogging` to `true`, but it must remain `false` in production. A full API test requires PHP, MariaDB, the schema, server environment variables, and an `Origin` header that exactly matches `STUDY_ALLOWED_ORIGIN`.
 
 No production credentials, participant records, Qualtrics exports, or Prolific exports belong in this repository.
+
+## Review statement
+
+The current branch is prepared for University technical review. It is not production-approved. The exact completed and pending lifecycle evidence is recorded in `docs/SDLC.md` and `docs/REQUIREMENTS_TRACEABILITY.md`; reviewers should not interpret repository completeness as IRB, security, accessibility, or infrastructure approval.
