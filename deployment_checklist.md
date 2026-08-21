@@ -17,6 +17,7 @@
 - [ ] Set `apiBaseUrl` in `study-config.js` to the same approved HTTPS origin.
 - [ ] Replace the Qualtrics placeholder in `study-config.js`.
 - [ ] Confirm `enableAssignmentOverrides` remains `false` in production.
+- [ ] Confirm `enableDebugLogging` remains `false` in production and participant records do not appear in the browser console.
 
 ## Application and database
 

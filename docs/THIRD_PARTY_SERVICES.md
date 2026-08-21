@@ -16,6 +16,6 @@
 
 ## Software libraries and external APIs
 
-The participant application uses no third-party JavaScript library, plugin, font CDN, analytics service, advertising service, real identity provider, payment API, email service, or file-upload service. The PHP API uses only PHP core functionality and PDO MySQL. No Composer package or container image is required.
+The participant application uses no generative-AI or machine-learning model, AI API, third-party JavaScript library, plugin, font CDN, analytics service, advertising service, real identity provider, payment API, email service, or file-upload service. “AI assistant” appears only as participant-facing study content. The PHP API uses only PHP core functionality and PDO MySQL. No Composer package or container image is required.
 
 Service terms, privacy documentation, support status, and institutional approvals should be reviewed again before recruitment and whenever either external service materially changes.

@@ -140,7 +140,7 @@ function require_string(array $input, string $key, int $maxLength = 128): string
 function require_pid(array $input): string
 {
     $pid = require_string($input, 'pid', 64);
-    if (preg_match('/^P-[A-F0-9]{10}$/D', $pid) !== 1) {
+    if (preg_match('/^P-[A-F0-9]{20}$/D', $pid) !== 1) {
         fail(422, 'invalid_pid');
     }
 

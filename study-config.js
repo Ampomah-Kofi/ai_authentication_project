@@ -12,5 +12,6 @@ window.STUDY_CONFIG = Object.freeze({
   eventsPath: "/api/study/task-events.php",
   withdrawalsPath: "/api/study/task-withdrawals.php",
   abandonmentPath: "/api/study/task-events.php",
-  enableAssignmentOverrides: false
+  enableAssignmentOverrides: false,
+  enableDebugLogging: false
 });

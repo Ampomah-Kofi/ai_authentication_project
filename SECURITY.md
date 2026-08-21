@@ -5,11 +5,13 @@
 - Browser code contains no database credential or server secret.
 - The API permits only `POST` and CORS preflight `OPTIONS`; other methods return `405`.
 - Requests require JSON, an exact configured Origin, a bounded body size, a valid random participant-code format, allowlisted assignment values, and matching identifiers inside the payload.
+- Participant codes contain 80 bits of browser-generated cryptographic randomness; predictable fallback identifiers are not permitted.
 - SQL writes use native parameterized PDO statements with emulated prepares disabled.
 - Public routes insert records only and provide no read, update, delete, reporting, login, or administrative operation.
 - Rate limiting uses a daily HMAC of the direct connection address and stores no raw address in the application database.
 - API errors return generic codes; operational details go only to protected server error logs.
 - Assignment overrides are disabled in the committed production configuration.
+- Participant identifiers and behavioral records are not written to the browser console unless a developer explicitly enables local debug logging.
 
 ## Required hosting controls
 

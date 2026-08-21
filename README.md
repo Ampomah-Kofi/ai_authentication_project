@@ -55,6 +55,6 @@ Both endpoints require an exact allowed browser origin, validate the participant
 
 ## Local review
 
-Opening `auth_task.html` directly keeps the study API disabled and logs test data only to the browser console. A full API test requires PHP, MariaDB, the schema, server environment variables, and an `Origin` header that exactly matches `STUDY_ALLOWED_ORIGIN`.
+Opening `auth_task.html` directly keeps the study API disabled. Browser-console event logging is also disabled by default; it may be enabled temporarily for local fake-data testing by setting `enableDebugLogging` to `true`, but it must remain `false` in production. A full API test requires PHP, MariaDB, the schema, server environment variables, and an `Origin` header that exactly matches `STUDY_ALLOWED_ORIGIN`.
 
 No production credentials, participant records, Qualtrics exports, or Prolific exports belong in this repository.

@@ -307,9 +307,10 @@ DESIGN (updated): 2x2 between-subjects.
   .stepdots span.on{background:var(--brand);}
 
   .codeout{
-    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:28px;font-weight:800;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:clamp(17px,4vw,24px);font-weight:800;
     text-align:center;background:var(--brand-soft);border:1px dashed var(--brand);
-    border-radius:8px;padding:18px;margin:10px 0 6px;letter-spacing:2px;color:#0a5278;
+    border-radius:8px;padding:18px;margin:10px 0 6px;letter-spacing:1px;color:#0a5278;
+    overflow-wrap:anywhere;
   }
   .post-q{margin:0;padding:20px 0;}
   .post-q+.post-q{border-top:1px solid var(--line);}
@@ -688,7 +689,7 @@ DESIGN (updated): 2x2 between-subjects.
     <p>Thank you. Here is your anonymous participant code. The survey will pick it
        up automatically when you click the button, but you can also copy it down
        just in case.</p>
-    <div class="codeout" id="codeOut">P-XXXXX</div>
+    <div class="codeout" id="codeOut">P-XXXXXXXXXXXXXXXXXXXX</div>
     <p class="small code-label">Your code</p>
     <p class="small" id="saveStatus" role="status" aria-live="polite">Saving task data...</p>
     <button type="button" class="btn btn-primary btn-block" id="toSurveyBtn" disabled>Saving task data...</button>
@@ -719,22 +720,28 @@ const CONFIG = Object.freeze({
   withdrawalsPath: "/api/study/task-withdrawals.php",
   abandonmentPath: "/api/study/task-events.php",
   enableAssignmentOverrides: false,
+  enableDebugLogging: false,
   ...(window.STUDY_CONFIG || {})
 });
+
+function debugLog(...values){
+  if (CONFIG.enableDebugLogging) console.log(...values);
+}
+
+function debugError(...values){
+  if (CONFIG.enableDebugLogging) console.error(...values);
+}
 
 /* =====================================================================
    STATE + DATA RECORD
    ===================================================================== */
 function makePid(){
-  if (window.crypto && crypto.randomUUID) {
-    return "P-" + crypto.randomUUID().replace(/-/g, "").slice(0,10).toUpperCase();
+  if (!window.crypto || !crypto.getRandomValues) {
+    throw new Error("A secure browser context is required to generate a participant code.");
   }
-  const bytes = new Uint8Array(8);
-  if (window.crypto && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes);
-    return "P-" + [...bytes].map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,10).toUpperCase();
-  }
-  return "P-" + Date.now().toString(36).toUpperCase();
+  const bytes = new Uint8Array(10);
+  crypto.getRandomValues(bytes);
+  return "P-" + [...bytes].map(b=>b.toString(16).padStart(2,"0")).join("").toUpperCase();
 }
 
 const PID = makePid();
@@ -880,7 +887,7 @@ function logEvent(type, details){
     details: details || {}
   };
   data.events.push(event);
-  console.log(JSON.stringify({
+  debugLog(JSON.stringify({
     event: type,
     pid: data.pid,
     condition: data.condition,
@@ -905,7 +912,7 @@ function renderPermissions(){
   } else {
     ordered = [...others, planted];
   }
-  list.innerHTML = "";
+  list.replaceChildren();
   ordered.forEach((perm, idx)=>{
     if (perm.planted) data.consent.planted_position = idx + 1;
     const row = document.createElement("div");
@@ -913,7 +920,7 @@ function renderPermissions(){
     if (perm.planted) row.setAttribute("data-planted", "true");
     const ck = document.createElement("span");
     ck.className = "ck";
-    ck.innerHTML = "&#10003;";
+    ck.textContent = "✓";
     const txt = document.createElement("span");
     txt.textContent = perm.text;
     row.appendChild(ck);
@@ -933,7 +940,7 @@ function renderRecallOptions(){
   ];
   const ordered = shuffleArray(items);
   data.recall.option_order = ordered.map(item=>item.value);
-  container.innerHTML = "";
+  container.replaceChildren();
   ordered.forEach(item=>{
     const label = document.createElement("label");
     label.className = "opt";
@@ -1318,10 +1325,10 @@ async function requestWithdrawal(){
         requested_at: data.withdrawal.at,
         payload: data.withdrawal
       }, false);
-      console.log("Study API withdrawal status:", res.status);
-    }catch(e){ console.error("Study API withdrawal save failed:", e); }
+      debugLog("Study API withdrawal status:", res.status);
+    }catch(e){ debugError("Study API withdrawal save failed:", e); }
   } else {
-    console.log("Local test withdrawal request:", JSON.stringify(data.withdrawal));
+    debugLog("Local test withdrawal request:", JSON.stringify(data.withdrawal));
   }
 }
 
@@ -1350,7 +1357,7 @@ window.addEventListener("beforeunload", ()=>{
   };
   data.timestamps.abandoned_at = data.abandonment.at;
   if (!CONFIG.apiBaseUrl) {
-    console.log(JSON.stringify({
+    debugLog(JSON.stringify({
       event: "abandoned",
       pid: data.pid,
       condition: data.condition,
@@ -1364,25 +1371,25 @@ window.addEventListener("beforeunload", ()=>{
 });
 
 async function saveData(){
-  console.log("==== TASK DATA (copy/inspect) ====");
-  console.log(JSON.stringify(data, null, 2));
+  debugLog("==== TASK DATA (copy/inspect) ====");
+  debugLog(JSON.stringify(data, null, 2));
 
   if (CONFIG.apiBaseUrl) {
     try{
       const res = await postStudyApi(CONFIG.eventsPath, { pid:data.pid, condition:data.condition, placement:data.placement, payload:data }, false);
-      console.log("Study API save status:", res.status);
+      debugLog("Study API save status:", res.status);
       return res && res.ok;
     }catch(e){
-      console.error("Study API save failed:", e);
+      debugError("Study API save failed:", e);
       return false;
     }
   } else {
-    console.log("(Local test mode: the university study API is not configured; data was logged above only.)");
+    debugLog("(Local test mode: the university study API is not configured; data was logged above only.)");
     return true;
   }
 }
 
-console.info(
+debugLog(
   "Task deployment state: pid=" + PID +
   " condition=" + CONDITION +
   " placement=" + PLACEMENT +
