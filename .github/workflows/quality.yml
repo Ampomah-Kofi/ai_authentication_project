@@ -1,0 +1,42 @@
+name: Code quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Show PHP version
+        run: php --version
+
+      - name: Lint PHP
+        run: find deployment -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Check public configuration JavaScript
+        run: node --check deployment/public/study-config.js
+
+      - name: Check inline application JavaScript
+        run: node scripts/check-inline-js.mjs
+
+      - name: Check security invariants
+        run: node scripts/static-security-check.mjs
+
+      - name: Test API rejection guards
+        run: bash scripts/test-api-guards.sh
+
+      - name: Reject accidentally committed private files
+        run: |
+          if find . -path './.git' -prune -o \( -name '.env' -o -name '*.log' -o -name '*.sql.gz' \) -print | grep -q .; then
+            echo 'A private environment, log, or database-export file is present.'
+            exit 1
+          fi
