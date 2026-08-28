@@ -23,6 +23,7 @@ if (($payload['requested'] ?? null) !== true) {
 
 $pdo = database();
 enforce_rate_limit($pdo);
+verify_database_assignment($pdo, $pid, $condition, $placement);
 
 try {
     $id = uuid_v4();

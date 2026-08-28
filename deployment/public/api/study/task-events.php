@@ -20,6 +20,7 @@ verify_payload_identity($payload, $pid, $condition, $placement);
 $recordType = (($payload['abandoned'] ?? false) === true) ? 'abandoned' : 'completed';
 $pdo = database();
 enforce_rate_limit($pdo);
+verify_database_assignment($pdo, $pid, $condition, $placement);
 
 try {
     $id = uuid_v4();

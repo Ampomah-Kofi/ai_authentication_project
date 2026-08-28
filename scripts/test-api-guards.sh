@@ -3,7 +3,7 @@ set -euo pipefail
 
 port="${STUDY_TEST_PORT:-8765}"
 origin="https://study.example.edu"
-base="http://127.0.0.1:${port}/api/study/task-events.php"
+base_root="http://127.0.0.1:${port}/api/study"
 
 STUDY_ALLOWED_ORIGIN="$origin" php -S "127.0.0.1:${port}" -t deployment/public >/tmp/study-php-server.log 2>&1 &
 server_pid=$!
@@ -25,11 +25,14 @@ assert_status() {
   fi
 }
 
-assert_status 204 -X OPTIONS -H "Origin: ${origin}" "$base"
-assert_status 405 -X GET -H "Origin: ${origin}" "$base"
-assert_status 403 -X POST -H 'Origin: https://unapproved.example' -H 'Content-Type: application/json' --data '{}' "$base"
-assert_status 415 -X POST -H "Origin: ${origin}" -H 'Content-Type: text/plain' --data '{}' "$base"
-assert_status 400 -X POST -H "Origin: ${origin}" -H 'Content-Type: application/json' --data '{' "$base"
-assert_status 422 -X POST -H "Origin: ${origin}" -H 'Content-Type: application/json' --data '{"pid":"invalid"}' "$base"
+for endpoint in assignment.php task-events.php task-withdrawals.php; do
+  base="${base_root}/${endpoint}"
+  assert_status 204 -X OPTIONS -H "Origin: ${origin}" "$base"
+  assert_status 405 -X GET -H "Origin: ${origin}" "$base"
+  assert_status 403 -X POST -H 'Origin: https://unapproved.example' -H 'Content-Type: application/json' --data '{}' "$base"
+  assert_status 415 -X POST -H "Origin: ${origin}" -H 'Content-Type: text/plain' --data '{}' "$base"
+  assert_status 400 -X POST -H "Origin: ${origin}" -H 'Content-Type: application/json' --data '{' "$base"
+  assert_status 422 -X POST -H "Origin: ${origin}" -H 'Content-Type: application/json' --data '{"pid":"invalid"}' "$base"
+done
 
 echo "API guard tests passed."

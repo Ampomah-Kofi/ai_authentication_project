@@ -476,6 +476,7 @@
       <div class="consent-action">
         <p class="small">By selecting the button below, you confirm that you have read this
            information and agree to begin the research task.</p>
+        <p class="mfa-error" id="assignmentStatus" role="alert" aria-live="assertive"></p>
         <button type="button" class="btn btn-primary btn-block" id="beginTaskBtn" onclick="begin()">I agree, begin the task</button>
       </div>
       <div class="small lab-footer">UA SPECTRAL Lab · The University of Alabama</div>
@@ -690,6 +691,7 @@ const CONFIG = Object.freeze({
   surveyBaseUrl: "https://REPLACE-WITH-YOUR-QUALTRICS-LINK",
   surveyPidParam: "pid",
   apiBaseUrl: "",
+  assignmentPath: "/api/study/assignment.php",
   eventsPath: "/api/study/task-events.php",
   withdrawalsPath: "/api/study/task-withdrawals.php",
   abandonmentPath: "/api/study/task-events.php",
@@ -709,6 +711,51 @@ function debugError(...values){
 /* =====================================================================
    STATE + DATA RECORD
    ===================================================================== */
+const HANDOFF_SESSION_KEY = "auth_study_completed_handoff_v1";
+const ASSIGNMENT_SESSION_KEY = "auth_study_assignment_v1";
+const STUDY_CONDITIONS = Object.freeze(["A_fresh", "B_chained"]);
+const STUDY_PLACEMENTS = Object.freeze(["top", "bottom"]);
+
+function hasValidAssignment(value){
+  return value
+    && value.version === 1
+    && /^P-[A-F0-9]{20}$/.test(value.pid)
+    && STUDY_CONDITIONS.includes(value.condition)
+    && STUDY_PLACEMENTS.includes(value.placement);
+}
+
+function readCompletedHandoff(){
+  try{
+    const raw = window.sessionStorage.getItem(HANDOFF_SESSION_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw);
+    const valid = hasValidAssignment(value)
+      && typeof value.finished_at === "string"
+      && [true, false, null].includes(value.data_saved);
+    if (valid) return value;
+    window.sessionStorage.removeItem(HANDOFF_SESSION_KEY);
+  }catch(error){
+    debugError("Unable to read completed handoff state:", error);
+  }
+  return null;
+}
+
+function readStudyAssignment(){
+  try{
+    const raw = window.sessionStorage.getItem(ASSIGNMENT_SESSION_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw);
+    const valid = hasValidAssignment(value)
+      && ["server_permuted_block", "client_random_test"].includes(value.method)
+      && typeof value.assigned_at === "string";
+    if (valid) return value;
+    window.sessionStorage.removeItem(ASSIGNMENT_SESSION_KEY);
+  }catch(error){
+    debugError("Unable to read study assignment:", error);
+  }
+  return null;
+}
+
 function makePid(){
   if (!window.crypto || !crypto.getRandomValues) {
     throw new Error("A secure browser context is required to generate a participant code.");
@@ -718,7 +765,10 @@ function makePid(){
   return "P-" + [...bytes].map(b=>b.toString(16).padStart(2,"0")).join("").toUpperCase();
 }
 
-const PID = makePid();
+const RECOVERED_HANDOFF = readCompletedHandoff();
+const STORED_ASSIGNMENT = readStudyAssignment();
+const RECOVERED_ASSIGNMENT = RECOVERED_HANDOFF || STORED_ASSIGNMENT;
+const PID = RECOVERED_ASSIGNMENT ? RECOVERED_ASSIGNMENT.pid : makePid();
 const URL_PARAMS = new URLSearchParams(window.location.search);
 const DEBUG_ASSIGNMENT = CONFIG.enableAssignmentOverrides && URL_PARAMS.get("force") === "1";
 function assignmentParam(name, allowed, fallback){
@@ -726,19 +776,11 @@ function assignmentParam(name, allowed, fallback){
   return DEBUG_ASSIGNMENT && allowed.includes(value) ? value : fallback;
 }
 
-// Factor 1: A = fresh (consent first), B = chained (3 steps then consent)
-const CONDITION = assignmentParam(
-  "condition",
-  ["A_fresh", "B_chained"],
-  Math.random() < 0.5 ? "A_fresh" : "B_chained"
-);
-// Factor 2: placement of the planted over-broad permission within the list.
-// "top" = planted payment row renders first; "bottom" = renders last.
-const PLACEMENT = assignmentParam(
-  "placement",
-  ["top", "bottom"],
-  Math.random() < 0.5 ? "top" : "bottom"
-);
+// Production assignment comes from the server after the participant agrees.
+// A recovered session reuses its original cell; local test mode uses the same
+// two factors without claiming balanced allocation.
+let CONDITION = RECOVERED_ASSIGNMENT ? RECOVERED_ASSIGNMENT.condition : null;
+let PLACEMENT = RECOVERED_ASSIGNMENT ? RECOVERED_ASSIGNMENT.placement : null;
 const PAGE_START_MS = performance.now();
 const MFA_CHALLENGE = buildMfaChallenge();
 
@@ -766,10 +808,15 @@ const REAL_PERMISSION_KEYS = PERMISSIONS.map(p=>p.key);
 const FOIL_KEYS = RECALL_FOILS.map(f=>f.key);
 
 const data = {
+  schema_version: "1.1.0",
   pid: PID,
   condition: CONDITION,
   placement: PLACEMENT,
-  cell: CONDITION + "__" + PLACEMENT,
+  cell: CONDITION && PLACEMENT ? CONDITION + "__" + PLACEMENT : null,
+  assignment: {
+    method: STORED_ASSIGNMENT ? STORED_ASSIGNMENT.method : null,
+    assigned_at: STORED_ASSIGNMENT ? STORED_ASSIGNMENT.assigned_at : null
+  },
   signin_choice: null,
   user_agent: navigator.userAgent,
   started_at: new Date().toISOString(),
@@ -872,8 +919,6 @@ function logEvent(type, details){
     details: event.details
   }));
 }
-
-logEvent("started", { initial_screen: currentId, cell: data.cell });
 
 /* ---- render the permission list according to placement arm ---- */
 function renderPermissions(){
@@ -1007,9 +1052,101 @@ function show(id){
 /* =====================================================================
    FLOW
    ===================================================================== */
-function begin(){
+function rememberStudyAssignment(method, assignedAt){
+  const record = {
+    version: 1,
+    pid: PID,
+    condition: CONDITION,
+    placement: PLACEMENT,
+    method: method,
+    assigned_at: assignedAt
+  };
+  try{
+    window.sessionStorage.setItem(ASSIGNMENT_SESSION_KEY, JSON.stringify(record));
+  }catch(error){
+    debugError("Unable to preserve study assignment:", error);
+  }
+}
+
+function applyStudyAssignment(condition, placement, method, assignedAt){
+  if (!STUDY_CONDITIONS.includes(condition) || !STUDY_PLACEMENTS.includes(placement)) {
+    throw new Error("The assignment service returned an invalid study cell.");
+  }
+  CONDITION = condition;
+  PLACEMENT = placement;
+  data.condition = condition;
+  data.placement = placement;
+  data.cell = condition + "__" + placement;
+  data.assignment.method = method;
+  data.assignment.assigned_at = assignedAt;
+  data.consent.placement = placement;
+  rememberStudyAssignment(method, assignedAt);
+}
+
+async function ensureStudyAssignment(){
+  if (CONFIG.apiBaseUrl) {
+    const response = await postStudyApi(CONFIG.assignmentPath, {pid:PID}, false);
+    if (!response || !response.ok) {
+      throw new Error("The assignment service is unavailable.");
+    }
+    const assigned = await response.json();
+    if (assigned.pid !== PID) {
+      throw new Error("The assignment service returned a mismatched participant code.");
+    }
+    applyStudyAssignment(
+      assigned.condition,
+      assigned.placement,
+      "server_permuted_block",
+      nowIso()
+    );
+    return;
+  }
+
+  if (CONDITION && PLACEMENT) return;
+  applyStudyAssignment(
+    assignmentParam(
+      "condition",
+      STUDY_CONDITIONS,
+      Math.random() < 0.5 ? "A_fresh" : "B_chained"
+    ),
+    assignmentParam(
+      "placement",
+      STUDY_PLACEMENTS,
+      Math.random() < 0.5 ? "top" : "bottom"
+    ),
+    "client_random_test",
+    nowIso()
+  );
+}
+
+let beginInProgress = false;
+async function begin(){
+  if (beginInProgress) return;
+  beginInProgress = true;
+  const beginButton = document.getElementById("beginTaskBtn");
+  const assignmentStatus = document.getElementById("assignmentStatus");
+  beginButton.disabled = true;
+  beginButton.textContent = "Preparing the task...";
+  assignmentStatus.textContent = "";
+
+  try{
+    await ensureStudyAssignment();
+  }catch(error){
+    debugError("Study assignment failed:", error);
+    assignmentStatus.textContent = "The study could not start. Please try again. If the problem continues, tell the researcher.";
+    beginButton.disabled = false;
+    beginButton.textContent = "I agree, begin the task";
+    beginInProgress = false;
+    return;
+  }
+
   data.consented_at = nowIso();
   data.timestamps.consented_at = data.consented_at;
+  logEvent("started", {
+    initial_screen: currentId,
+    cell: data.cell,
+    assignment_method: data.assignment.method
+  });
   logEvent("task_begin", { condition: CONDITION, placement: PLACEMENT, cell: data.cell });
   if (CONDITION === "B_chained") {
     show("s-pw");
@@ -1224,14 +1361,73 @@ function finishRecall(){
 /* =====================================================================
    FINISH: save + handoff
    ===================================================================== */
+function buildSurveyUrl(pid, condition, placement){
+  const separator = CONFIG.surveyBaseUrl.includes("?") ? "&" : "?";
+  return CONFIG.surveyBaseUrl + separator
+       + CONFIG.surveyPidParam + "=" + encodeURIComponent(pid)
+       + "&condition=" + encodeURIComponent(condition)
+       + "&placement=" + encodeURIComponent(placement);
+}
+
+function rememberCompletedHandoff(dataSaved){
+  const record = {
+    version: 1,
+    pid: PID,
+    condition: CONDITION,
+    placement: PLACEMENT,
+    finished_at: data.finished_at,
+    data_saved: dataSaved === true ? true : (dataSaved === false ? false : null)
+  };
+  try{
+    window.sessionStorage.setItem(HANDOFF_SESSION_KEY, JSON.stringify(record));
+  }catch(error){
+    debugError("Unable to preserve completed handoff state:", error);
+  }
+}
+
+function restoreCompletedHandoff(){
+  if (!RECOVERED_HANDOFF) return false;
+
+  document.querySelectorAll(".screen").forEach(screen=>screen.classList.remove("active"));
+  const endScreen = document.getElementById("s-end");
+  endScreen.classList.add("active");
+  document.body.classList.remove("auth-active", "consent-active", "mfa-active");
+
+  data.finished_at = RECOVERED_HANDOFF.finished_at;
+  data.timestamps.finished_at = RECOVERED_HANDOFF.finished_at;
+  currentId = "s-end";
+  screenEnter = performance.now();
+  currentVisit = {
+    screen: currentId,
+    entered_at: nowIso(),
+    entered_ms: elapsedMs(),
+    exited_at: null,
+    duration_ms: null
+  };
+
+  document.getElementById("codeOut").textContent = PID;
+  const surveyBtn = document.getElementById("toSurveyBtn");
+  surveyBtn.href = buildSurveyUrl(PID, CONDITION, PLACEMENT);
+  surveyBtn.setAttribute("aria-disabled", "false");
+  surveyBtn.textContent = "Continue to the short survey";
+  document.getElementById("withdrawBtn").onclick = requestWithdrawal;
+
+  const saveStatus = document.getElementById("saveStatus");
+  if (RECOVERED_HANDOFF.data_saved === true) {
+    saveStatus.textContent = "Task data saved. You can continue to the survey.";
+  } else {
+    saveStatus.textContent = "Task data save status was not confirmed. Please tell the researcher before continuing.";
+  }
+
+  window.scrollTo(0, 0);
+  endScreen.focus({preventScroll:true});
+  return true;
+}
+
 function endTask(){
   document.getElementById("codeOut").textContent = PID;
   // carry pid, condition, and placement through to the survey
-  const sep = CONFIG.surveyBaseUrl.includes("?") ? "&" : "?";
-  const url = CONFIG.surveyBaseUrl + sep
-            + CONFIG.surveyPidParam + "=" + encodeURIComponent(PID)
-            + "&condition=" + encodeURIComponent(CONDITION)
-            + "&placement=" + encodeURIComponent(PLACEMENT);
+  const url = buildSurveyUrl(PID, CONDITION, PLACEMENT);
 
   const surveyBtn = document.getElementById("toSurveyBtn");
   const saveStatus = document.getElementById("saveStatus");
@@ -1244,8 +1440,10 @@ function endTask(){
   data.finished_at = nowIso();
   data.timestamps.finished_at = data.finished_at;
   logEvent("finished", { total_time_ms: elapsedMs() });
+  rememberCompletedHandoff(null);
 
   saveData().then((saved)=>{
+    rememberCompletedHandoff(saved);
     surveyBtn.href = url;
     surveyBtn.setAttribute("aria-disabled", "false");
     surveyBtn.textContent = "Continue to the short survey";
@@ -1320,7 +1518,8 @@ function sendAbandonment(){
 }
 
 window.addEventListener("beforeunload", ()=>{
-  if (data.finished_at) return;
+  // Do not transmit any research record before the participant has agreed.
+  if (!data.consented_at || data.finished_at) return;
   const duration = Math.round(performance.now() - screenEnter);
   data.screen_times_ms[currentId] = Math.round((data.screen_times_ms[currentId]||0) + duration);
   data.abandoned = true;
@@ -1360,9 +1559,11 @@ async function saveData(){
     }
   } else {
     debugLog("(Local test mode: the university study API is not configured; data was logged above only.)");
-    return true;
+    return false;
   }
 }
+
+const HANDOFF_WAS_RESTORED = restoreCompletedHandoff();
 
 debugLog(
   "Task deployment state: pid=" + PID +
@@ -1371,6 +1572,7 @@ debugLog(
   " cell=" + data.cell +
   " study_api_configured=" + !!CONFIG.apiBaseUrl +
   " survey_url_configured=" + !!(CONFIG.surveyBaseUrl && !CONFIG.surveyBaseUrl.includes("REPLACE-WITH")) +
+  " handoff_restored=" + HANDOFF_WAS_RESTORED +
   " mfa_challenge_code=" + data.mfa.challenge_code
 );
 </script>

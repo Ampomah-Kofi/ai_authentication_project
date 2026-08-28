@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
- * Shared security boundary for the two public study endpoints.
+ * Shared security boundary for the public study endpoints.
  *
  * The browser is untrusted. Every request is independently constrained here
  * before an endpoint can open a database connection or write research data.
@@ -194,6 +194,29 @@ function verify_payload_identity(array $payload, string $pid, string $condition,
         || ($payload['condition'] ?? null) !== $condition
         || ($payload['placement'] ?? null) !== $placement) {
         fail(422, 'payload_identity_mismatch');
+    }
+}
+
+/** Require the submitted cell to match the server-managed assignment. */
+function verify_database_assignment(PDO $pdo, string $pid, string $condition, string $placement): void
+{
+    try {
+        $statement = $pdo->prepare(
+            'SELECT study_condition, placement FROM study_assignment_slots WHERE pid = ? LIMIT 1'
+        );
+        $statement->execute([$pid]);
+        $assignment = $statement->fetch();
+    } catch (Throwable $error) {
+        error_log('Study assignment verification failed: ' . $error->getMessage());
+        fail(503, 'assignment_verification_unavailable');
+    }
+
+    if ($assignment === false) {
+        fail(409, 'assignment_required');
+    }
+    if (!hash_equals((string) $assignment['study_condition'], $condition)
+        || !hash_equals((string) $assignment['placement'], $placement)) {
+        fail(422, 'assignment_mismatch');
     }
 }
 

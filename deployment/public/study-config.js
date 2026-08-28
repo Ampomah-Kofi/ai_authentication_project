@@ -9,6 +9,7 @@ window.STUDY_CONFIG = Object.freeze({
   surveyBaseUrl: "https://REPLACE-WITH-YOUR-QUALTRICS-LINK",
   surveyPidParam: "pid",
   apiBaseUrl: "",
+  assignmentPath: "/api/study/assignment.php",
   eventsPath: "/api/study/task-events.php",
   withdrawalsPath: "/api/study/task-withdrawals.php",
   abandonmentPath: "/api/study/task-events.php",
