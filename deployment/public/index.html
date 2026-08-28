@@ -96,6 +96,11 @@
     border-radius:8px; padding:15px 16px; margin:4px 0 18px; color:#123f58;
   }
   .notice p{font-size:15.5px; margin:0; color:#123f58;}
+  .handoff-warning{
+    background:#fff7db; border:2px solid #b45309;
+    border-radius:8px; padding:15px 16px; margin:16px 0;
+  }
+  .handoff-warning p{margin:0;color:#713f12;font-size:16px;}
   .consent-section{
     border-top:1px solid var(--line); padding-top:19px; margin-top:19px;
   }
@@ -112,14 +117,17 @@
     display:inline-flex; align-items:center; justify-content:center;
     min-height:48px; border:none; border-radius:8px; cursor:pointer;
     font-size:16px; font-family:inherit; padding:12px 20px; font-weight:700;
+    text-decoration:none;
     transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease;
   }
   .btn-primary{background:var(--brand); color:#fff;}
+  .btn-primary:visited{color:#fff;}
   .btn-primary:hover{background:var(--brand-dark);box-shadow:0 3px 10px rgba(8,125,184,.2);}
   .btn-block{display:flex; width:100%; text-align:center;}
   .btn-ghost{background:#fff; color:#354152; border:1.5px solid var(--control-border);}
   .btn-ghost:hover{background:#f7f9fb;border-color:#566473;}
   .btn:disabled{cursor:not-allowed;opacity:.78;}
+  .btn[aria-disabled="true"]{cursor:not-allowed;opacity:.78;pointer-events:none;}
   .btn-recorded{border-color:#99d7cd;background:#ecfdf5;color:#0f766e;}
   .skip-link{
     position:absolute;left:12px;top:12px;z-index:10;
@@ -650,8 +658,14 @@
        just in case.</p>
     <div class="codeout" id="codeOut">P-XXXXXXXXXXXXXXXXXXXX</div>
     <p class="small code-label">Your code</p>
+    <div class="handoff-warning" role="alert">
+      <p><strong>Please do not close this window until you finish the survey.</strong>
+         The survey will open in a new tab. Keep this page open so your participant
+         code remains available.</p>
+    </div>
     <p class="small" id="saveStatus" role="status" aria-live="polite">Saving task data...</p>
-    <button type="button" class="btn btn-primary btn-block" id="toSurveyBtn" disabled>Saving task data...</button>
+    <a class="btn btn-primary btn-block" id="toSurveyBtn" target="_blank"
+       rel="noopener noreferrer" aria-disabled="true">Saving task data...</a>
     <div class="withdraw-box">
       <p class="small">If you do not want your task data used, you may request removal now.
          This will record a withdrawal request with your participant code.</p>
@@ -1220,9 +1234,9 @@ function endTask(){
 
   const surveyBtn = document.getElementById("toSurveyBtn");
   const saveStatus = document.getElementById("saveStatus");
-  surveyBtn.disabled = true;
+  surveyBtn.removeAttribute("href");
+  surveyBtn.setAttribute("aria-disabled", "true");
   surveyBtn.textContent = "Saving task data...";
-  surveyBtn.onclick = ()=>{ window.location.href = url; };
   document.getElementById("withdrawBtn").onclick = requestWithdrawal;
 
   show("s-end");
@@ -1231,7 +1245,8 @@ function endTask(){
   logEvent("finished", { total_time_ms: elapsedMs() });
 
   saveData().then((saved)=>{
-    surveyBtn.disabled = false;
+    surveyBtn.href = url;
+    surveyBtn.setAttribute("aria-disabled", "false");
     surveyBtn.textContent = "Continue to the short survey";
     if (saveStatus) {
       saveStatus.textContent = saved
